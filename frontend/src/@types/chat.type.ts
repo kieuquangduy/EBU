@@ -1,5 +1,22 @@
 export type ChatMessageType = "Text" | "Image" | "System";
 
+export interface ChatAttachmentDto {
+  url: string;
+  fileName: string;
+  contentType?: string;
+}
+
+export interface ChatProductCardDto {
+  productId: string;
+  name: string;
+  slug: string;
+  imageUrl?: string | null;
+  basePrice: number;
+  originalPrice?: number | null;
+  discountPercent?: number | null;
+  minOrderQuantity: number;
+}
+
 export interface ChatMessageDto {
   id: string;
   chatRoomId: string;
@@ -9,6 +26,8 @@ export interface ChatMessageDto {
   senderRole: string;
   message: string;
   messageType: ChatMessageType;
+  attachments?: ChatAttachmentDto[] | null;
+  productCard?: ChatProductCardDto | null;
   isRead: boolean;
   readAt: string | null;
   created: string;
@@ -26,6 +45,11 @@ export interface ChatRoomDto {
   customerIsOnline?: boolean;
   customerLastSeen?: string | null;
   assignedToId?: string | null;
+  productId?: string | null;
+  productName?: string | null;
+  productSlug?: string | null;
+  quoteRequestId?: string | null;
+  quoteCode?: string | null;
   status: string;
   priority: string;
   unreadCount: number;
@@ -34,13 +58,32 @@ export interface ChatRoomDto {
   closedAt?: string | null;
 }
 
+export interface StartSupportChatDto {
+  subject?: string;
+  productId?: string | null;
+  quoteRequestId?: string | null;
+  initialMessage?: string | null;
+}
+
 export interface SendChatMessageDto {
   chatRoomId: string;
   message: string;
   messageType?: ChatMessageType;
+  attachmentUrls?: string[];
+  productId?: string | null;
 }
 
 export interface MessagesReadEventDto {
   chatRoomId: string;
   readerId: string;
+}
+
+export interface AdminPresenceDto {
+  isAdminOnline: boolean;
+  onlineAdminCount: number;
+}
+
+export interface SupportAvailabilityDto extends AdminPresenceDto {
+  unreadCount: number;
+  workingHours?: string | null;
 }

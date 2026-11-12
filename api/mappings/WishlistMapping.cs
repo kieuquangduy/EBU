@@ -23,6 +23,15 @@ namespace api.mappings
                     Slug = product.Slug,
                     ImageUrl = product.ImageUrl,
                     Price = product.Price,
+                    BasePrice = ProductRfqMetadataHelper.ResolveBasePrice(product),
+                    OriginalPrice = product.OriginalPrice,
+                    DiscountPercent = ProductRfqMetadataHelper.ResolveDiscountPercent(
+                        ProductRfqMetadataHelper.ResolveBasePrice(product),
+                        product.OriginalPrice,
+                        product.DiscountPercent),
+                    MinOrderQuantity = product.MinOrderQuantity > 0
+                        ? product.MinOrderQuantity
+                        : ProductRfqMetadataHelper.DefaultMinOrderQuantity,
                     IsActive = product.IsActive,
                     BrandId = product.BrandId,
                     BrandName = product.Brand?.Name,

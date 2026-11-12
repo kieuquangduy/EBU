@@ -183,6 +183,8 @@ namespace api.services.implementations.product
                 Created = DateTime.UtcNow,
             };
 
+            ProductRfqMetadataHelper.ApplyCreateFields(product, dto);
+
             _repo.Add(product);
             await _repo.SaveChangesAsync(ct);
 
@@ -239,10 +241,11 @@ namespace api.services.implementations.product
             }
 
             if (dto.Description != null) product.Description = dto.Description.Trim();
-            if (dto.Price.HasValue) product.Price = dto.Price.Value;
             if (dto.Taxable.HasValue) product.Taxable = dto.Taxable.Value;
             if (dto.IsActive.HasValue) product.IsActive = dto.IsActive.Value;
             if (dto.Stock.HasValue) product.Stock = dto.Stock.Value;
+
+            ProductRfqMetadataHelper.ApplyUpdateFields(product, dto);
 
             if (dto.BrandId != null)
                 product.BrandId = dto.BrandId == "null" ? null : dto.BrandId;

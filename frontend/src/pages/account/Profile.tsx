@@ -653,7 +653,7 @@ const Profile: React.FC = () => {
                             <div className="px-6 py-5 border-b border-gray-100 bg-white/70">
                                 <h2 className="text-xl font-semibold text-gray-900">Địa chỉ giao hàng</h2>
                                 <p className="mt-1 text-sm text-gray-500">
-                                    Thêm hoặc chỉnh sửa địa chỉ dùng khi thanh toán đơn hàng.
+                                    Thêm hoặc chỉnh sửa địa chỉ nhận mẫu và giao hàng cho yêu cầu báo giá của bạn.
                                 </p>
                             </div>
 
@@ -785,7 +785,7 @@ const Profile: React.FC = () => {
                                         <div className="h-20 rounded-2xl bg-gray-100 animate-pulse" />
                                     ) : addresses.length === 0 ? (
                                         <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-5 text-sm text-gray-500">
-                                            Bạn chưa có địa chỉ giao hàng. Hãy thêm địa chỉ trước khi thanh toán.
+                                            Bạn chưa có địa chỉ giao hàng. Thêm địa chỉ để đội ngũ tư vấn ước tính chi phí vận chuyển nhanh hơn.
                                         </div>
                                     ) : (
                                         <div className="space-y-3">

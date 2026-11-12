@@ -12,6 +12,13 @@ namespace api.DTOs.product
         public string? Slug { get; set; }           // nếu null → tự sinh từ Name
         public string Description { get; set; } = string.Empty;
         public decimal Price { get; set; }
+        public decimal? BasePrice { get; set; }
+        public decimal? OriginalPrice { get; set; }
+        public int? DiscountPercent { get; set; }
+        public string? PriceNote { get; set; }
+        public List<string>? AvailableMaterials { get; set; }
+        public List<string>? AvailablePrintTechniques { get; set; }
+        public int? MinOrderQuantity { get; set; }
         public bool Taxable { get; set; } = false;
         public bool IsActive { get; set; } = true;
         public string? BrandId { get; set; }

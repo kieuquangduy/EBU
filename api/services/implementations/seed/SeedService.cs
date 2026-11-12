@@ -1,5 +1,6 @@
 using api.data;
 using api.data.seed;
+using api.services.interfaces.caching;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -10,10 +11,12 @@ namespace api.services.implementations.seed
     public class SeedService
     {
         private readonly ApplicationDbContext _context;
+        private readonly ICacheService _cache;
 
-        public SeedService(ApplicationDbContext context)
+        public SeedService(ApplicationDbContext context, ICacheService cache)
         {
             _context = context;
+            _cache = cache;
         }
 
         public async Task<SeedResult> SeedAllAsync()
@@ -33,6 +36,7 @@ namespace api.services.implementations.seed
 
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
+                    await InvalidateCatalogCacheAsync();
                     result.Success = true;
                 }
                 catch (Exception ex)
@@ -63,6 +67,7 @@ namespace api.services.implementations.seed
 
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
+                    await InvalidateCatalogCacheAsync();
                     result.Success = true;
                 }
                 catch (Exception ex)
@@ -90,6 +95,7 @@ namespace api.services.implementations.seed
 
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
+                    await InvalidateCatalogCacheAsync();
                     result.Success = true;
                     result.Message = "Da xoa du lieu order seed cua khach hang.";
                 }
@@ -117,14 +123,30 @@ namespace api.services.implementations.seed
                     await ClearCustomerOrderDataAsync();
                     await _context.SaveChangesAsync();
 
+                    _context.Wishlists.RemoveRange(_context.Wishlists);
+                    _context.Reviews.RemoveRange(_context.Reviews);
                     _context.ProductVariants.RemoveRange(_context.ProductVariants);
                     _context.ProductCategories.RemoveRange(_context.ProductCategories);
+                    await _context.SaveChangesAsync();
+
                     _context.Products.RemoveRange(_context.Products);
                     _context.Brands.RemoveRange(_context.Brands);
-                    _context.Categories.RemoveRange(_context.Categories);
+                    await _context.SaveChangesAsync();
+
+                    var childCategories = await _context.Categories
+                        .Where(c => c.ParentId != null)
+                        .ToListAsync();
+                    _context.Categories.RemoveRange(childCategories);
+                    await _context.SaveChangesAsync();
+
+                    var rootCategories = await _context.Categories
+                        .Where(c => c.ParentId == null)
+                        .ToListAsync();
+                    _context.Categories.RemoveRange(rootCategories);
 
                     await _context.SaveChangesAsync();
                     await transaction.CommitAsync();
+                    await InvalidateCatalogCacheAsync();
                     result.Success = true;
                     result.Message = "Da xoa toan bo du lieu seed.";
                 }
@@ -132,7 +154,7 @@ namespace api.services.implementations.seed
                 {
                     await transaction.RollbackAsync();
                     result.Success = false;
-                    result.Error = ex.Message;
+                    result.Error = ex.InnerException?.Message ?? ex.Message;
                 }
             });
 
@@ -245,6 +267,15 @@ namespace api.services.implementations.seed
             _context.Users.RemoveRange(users);
 
             return orders.Count;
+        }
+
+        private async Task InvalidateCatalogCacheAsync()
+        {
+            await _cache.RemoveByPrefixAsync(CacheKeys.ProductListPrefix);
+            await _cache.RemoveByPrefixAsync(CacheKeys.ProductPrefix);
+            await _cache.RemoveByPrefixAsync(CacheKeys.ProductSlugPrefix);
+            await _cache.RemoveByPrefixAsync(CacheKeys.CategoryPrefix);
+            await _cache.RemoveByPrefixAsync(CacheKeys.HomepagePrefix);
         }
     }
 

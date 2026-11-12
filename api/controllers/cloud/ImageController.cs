@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using api.data;
@@ -19,6 +20,7 @@ namespace api.controllers
         }
 
         [HttpPost("upload")]
+        [Authorize(Roles = "Admin,Merchant")]
         [RequestSizeLimit(209715200)] // 200MB
         public async Task<IActionResult> Upload(List<IFormFile> files)
         {
@@ -63,6 +65,7 @@ namespace api.controllers
         // DELETE /api/image/delete?publicId=haushop/product/aokhoacnam1
         // ════════════════════════════════════════════════════════════════
         [HttpDelete("delete")]
+        [Authorize(Roles = "Admin,Merchant")]
         public async Task<IActionResult> Delete([FromQuery] string publicId)
         {
             if (string.IsNullOrEmpty(publicId)) return BadRequest("PublicId không được trống.");
@@ -77,6 +80,7 @@ namespace api.controllers
         // GET /api/image/products
         // ════════════════════════════════════════════════════════════════
         [HttpGet("products")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetProducts()
         {
             // Lấy trực tiếp từ DB, Url đã được cập nhật khi Upload

@@ -1,25 +1,21 @@
 import { memo, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { Icon } from "@iconify/react";
 import { useToast } from "../../context/toastContext";
 import { formatPrice } from "../../utils/formatPrice";
 import type { ProductSummaryDto } from "../../@types/product.type";
 import { useAuth } from "../../hooks/useAuth";
-import { useAddToCart } from "../../hooks/useCart";
+import { useShopContact } from "../../hooks/useShopContact";
 import { useToggleWishlist } from "../../hooks/useWishlist";
 import { queryKeys } from "../../lib/queryKeys";
 import { logger } from "../../lib/logger";
+import { openZaloProductConsult, resolveProductPricing } from "../../lib/productRfq";
 import { ROUTES, routeTo } from "../../lib/routes";
 
 interface Props {
   product: ProductSummaryDto;
   initialWished?: boolean;
-}
-
-function displayPrice(p: ProductSummaryDto): number {
-  return p.minVariantPrice != null && p.minVariantPrice < p.price
-    ? p.minVariantPrice
-    : p.price;
 }
 
 const StarIcon = ({ filled }: { filled: boolean }) => (
@@ -37,15 +33,12 @@ function ProductCard({ product: p, initialWished }: Props) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { isAuthenticated, user } = useAuth();
-  const addToCart = useAddToCart();
+  const { data: shopContact } = useShopContact();
   const toggleWishlist = useToggleWishlist();
 
-  const [added, setAdded] = useState(false);
-  const [adding, setAdding] = useState(false);
   const [localWished, setLocalWished] = useState<boolean | null>(null);
 
-  const price = displayPrice(p);
-  const isOutOfStock = p.totalStock != null && p.totalStock <= 0;
+  const { basePrice, originalPrice, discountPercent } = resolveProductPricing(p);
   const wishlistIds = user?.id
     ? queryClient.getQueryData<string[]>(queryKeys.wishlist.ids(user.id))
     : null;
@@ -55,44 +48,29 @@ function ProductCard({ product: p, initialWished }: Props) {
     setLocalWished(null);
   }, [initialWished, p.id, user?.id]);
 
-  const handleAddToCart = async (e: React.MouseEvent) => {
+  const handleRequestQuote = (e: React.MouseEvent) => {
     e.stopPropagation();
-
-    if (isOutOfStock || adding || addToCart.isPending) return;
-
-    try {
-      setAdding(true);
-
-      if (!isAuthenticated) {
-        showToast("Vui lòng đăng nhập để thêm vào giỏ hàng", "warning");
-        navigate(ROUTES.SIGN_IN);
-        return;
-      }
-
-      if (!p.defaultVariantId) {
-        navigate(routeTo.product(p.slug));
-        return;
-      }
-
-      await addToCart.mutateAsync({
-        productVariantId: p.defaultVariantId,
-        quantity: 1,
-      });
-
-      setAdded(true);
-      showToast(`Đã thêm "${p.name}" vào giỏ!`, "success");
-      setTimeout(() => setAdded(false), 2000);
-    } catch (error) {
-      logger.error("Add to cart failed", error);
-      showToast("Không thể thêm vào giỏ hàng", "error");
-    } finally {
-      setAdding(false);
-    }
+    navigate(`${routeTo.product(p.slug)}?rfq=1`);
   };
 
-  const handleBuyNow = (e: React.MouseEvent) => {
+  const handleZalo = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(routeTo.product(p.slug));
+    const productUrl = `${window.location.origin}${routeTo.product(p.slug)}`;
+    const result = await openZaloProductConsult({
+      zaloPhone: shopContact?.zaloPhone,
+      productName: p.name,
+      productUrl,
+    });
+
+    if (!result.opened) {
+      showToast("Số Zalo đang cập nhật, chuyển sang chat với shop", "info");
+      navigate(`${routeTo.product(p.slug)}?chat=support`);
+      return;
+    }
+
+    if (result.copied) {
+      showToast("Đã sao chép tên mẫu áo — đang mở Zalo", "info");
+    }
   };
 
   const handleWishlist = async (e: React.MouseEvent) => {
@@ -146,15 +124,7 @@ function ProductCard({ product: p, initialWished }: Props) {
           </div>
         )}
 
-        {isOutOfStock && (
-          <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
-            <span className="text-xs font-semibold tracking-widest text-gray-500 border border-gray-300 px-3 py-1.5">
-              HẾT HÀNG
-            </span>
-          </div>
-        )}
-
-        {!isOutOfStock && p.categories[0] && (
+        {p.categories[0] && (
           <span className="absolute top-3.5 left-3.5 bg-primeColor text-white text-[10px] px-3 py-1 tracking-widest font-semibold z-10">
             {p.categories[0].name.toUpperCase()}
           </span>
@@ -180,17 +150,19 @@ function ProductCard({ product: p, initialWished }: Props) {
           </svg>
         </button>
 
-        <div className="absolute bottom-0 inset-x-0 bg-primeColor/85 text-white text-xs
+        <div
+          className="absolute bottom-0 inset-x-0 bg-primeColor/85 text-white text-xs
                         tracking-widest py-3 text-center font-medium z-10
                         opacity-0 translate-y-full group-hover:opacity-100 group-hover:translate-y-0
-                        transition-all duration-300">
-          XEM NHANH
+                        transition-all duration-300"
+        >
+          XEM CHI TIẾT &amp; BÁO GIÁ
         </div>
       </div>
 
       <div className="px-5 pt-4 pb-5">
         <p className="text-[10px] tracking-[1.5px] uppercase text-lightText mb-1.5 font-bodyFont truncate">
-          {p.brandName ?? p.categories[0]?.name ?? "HAUSHOP"}
+          {p.brandName ?? p.categories[0]?.name ?? "HAUSHOP CUSTOM"}
         </p>
 
         <h3 className="font-titleFont text-[17px] font-semibold leading-snug mb-2 truncate">
@@ -199,90 +171,60 @@ function ProductCard({ product: p, initialWished }: Props) {
 
         <div className="flex items-center gap-1 mb-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <StarIcon key={i} filled={i < Math.round(p.averageRating || 4)} />
+            <StarIcon key={i} filled={i < Math.round(p.averageRating || 5)} />
           ))}
           <span className="text-xs text-lightText font-bodyFont ml-1">
-            ({p.reviewCount || 128})
+            ({p.reviewCount || 0})
           </span>
         </div>
 
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-baseline gap-2">
-            <span className="text-[20px] font-bold text-red-500 font-titleFont">
-              {formatPrice(price)}
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="flex flex-wrap items-baseline gap-1.5">
+            <span className="text-xs text-lightText font-bodyFont">Giá từ</span>
+            <span className="text-[19px] font-bold text-[#1d4ed8] font-titleFont">
+              {formatPrice(basePrice)}
             </span>
-            {p.minVariantPrice != null && p.minVariantPrice < p.price && (
-              <span className="text-sm text-lightText line-through font-bodyFont">
-                {formatPrice(p.price)}
+            {originalPrice && (
+              <span className="text-xs text-lightText line-through font-bodyFont">
+                {formatPrice(originalPrice)}
+              </span>
+            )}
+            {discountPercent && (
+              <span className="rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                -{discountPercent}%
               </span>
             )}
           </div>
 
-          {p.totalStock != null && p.totalStock <= 10 && p.totalStock > 0 && (
-            <span className="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 font-semibold font-bodyFont">
-              Còn {p.totalStock}
+          {p.minOrderQuantity != null && p.minOrderQuantity > 1 && (
+            <span className="shrink-0 text-[10px] bg-blue-50 text-[#1d4ed8] px-2 py-0.5 font-semibold font-bodyFont">
+              Từ {p.minOrderQuantity} áo
             </span>
           )}
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
           <button
-            onClick={handleAddToCart}
-            disabled={isOutOfStock || adding}
-            className={`flex items-center justify-center gap-2 py-3 text-xs font-semibold
-                        font-bodyFont tracking-[0.6px] text-white transition-all duration-250
-                        disabled:opacity-50 disabled:cursor-not-allowed
-                        ${added ? "bg-success" : "bg-primeColor hover:bg-gray-700"}`}
+            type="button"
+            onClick={handleRequestQuote}
+            className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold
+                       font-bodyFont tracking-[0.4px] text-white bg-[#1d4ed8] hover:bg-[#1e40af] transition-all duration-200"
           >
-            {adding ? (
-              "Đang thêm..."
-            ) : added ? (
-              <>
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                  viewBox="0 0 24 24"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Đã thêm!
-              </>
-            ) : (
-              <>
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.8}
-                  viewBox="0 0 24 24"
-                >
-                  <circle cx="9" cy="21" r="1" />
-                  <circle cx="20" cy="21" r="1" />
-                  <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" />
-                </svg>
-                Thêm giỏ hàng
-              </>
-            )}
+            <Icon icon="lucide:clipboard-list" width={15} />
+            Nhận báo giá
           </button>
 
           <button
-            onClick={handleBuyNow}
-            className="flex items-center justify-center gap-2 py-3 text-xs font-semibold
-                       font-bodyFont tracking-[0.6px] text-white bg-red-500
-                       transition-all duration-250 hover:bg-red-600 hover:-translate-y-0.5"
+            type="button"
+            onClick={handleZalo}
+            className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold
+                       font-bodyFont tracking-[0.4px] text-[#0068ff] border border-[#0068ff] bg-white
+                       transition-all duration-200 hover:bg-blue-50"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.8}
-              viewBox="0 0 24 24"
-            >
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-            Mua ngay
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#0068ff] text-[8px] font-bold text-white">
+              Z
+            </span>
+            Tư vấn Zalo
           </button>
         </div>
       </div>

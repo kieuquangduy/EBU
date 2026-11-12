@@ -17,17 +17,23 @@ namespace api.controllers.admin
         private readonly IAdminManagementService _managementService;
         private readonly IValidator<CreateProductDto> _createProductValidator;
         private readonly IValidator<UpdateProductDto> _updateProductValidator;
+        private readonly IValidator<AdminCreateOrderFromQuoteDto> _createOrderFromQuoteValidator;
+        private readonly IValidator<AdminCreateManualOrderDto> _createManualOrderValidator;
 
         public AdminController(
             IAdminDashboardService dashboardService,
             IAdminManagementService managementService,
             IValidator<CreateProductDto> createProductValidator,
-            IValidator<UpdateProductDto> updateProductValidator)
+            IValidator<UpdateProductDto> updateProductValidator,
+            IValidator<AdminCreateOrderFromQuoteDto> createOrderFromQuoteValidator,
+            IValidator<AdminCreateManualOrderDto> createManualOrderValidator)
         {
             _dashboardService = dashboardService;
             _managementService = managementService;
             _createProductValidator = createProductValidator;
             _updateProductValidator = updateProductValidator;
+            _createOrderFromQuoteValidator = createOrderFromQuoteValidator;
+            _createManualOrderValidator = createManualOrderValidator;
         }
 
         [HttpGet("dashboard")]
@@ -180,6 +186,91 @@ namespace api.controllers.admin
             return Ok(result);
         }
 
+        [HttpPost("orders/from-quote/{quoteRequestId}")]
+        [ProducesResponseType(typeof(AdminOrderDetailDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> CreateOrderFromQuote(
+            string quoteRequestId,
+            [FromBody] AdminCreateOrderFromQuoteDto dto,
+            CancellationToken ct)
+        {
+            var validation = await _createOrderFromQuoteValidator.ValidateAsync(dto, ct);
+            if (!validation.IsValid)
+            {
+                return ValidationProblem(new ValidationProblemDetails(validation.ToClientSafeDictionary()));
+            }
+
+            try
+            {
+                var result = await _managementService.CreateOrderFromQuoteAsync(
+                    quoteRequestId,
+                    dto,
+                    User.GetUserId(),
+                    ct);
+                return StatusCode(StatusCodes.Status201Created, result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { message = ClientErrorMessages.NotFoundDetail });
+            }
+            catch (ArgumentException)
+            {
+                return BadRequest(new { message = ClientErrorMessages.InvalidRequestDetail });
+            }
+            catch (InvalidOperationException)
+            {
+                return Conflict(new { message = "Yêu cầu báo giá không hợp lệ để tạo đơn hàng hoặc đã tồn tại đơn hàng." });
+            }
+        }
+
+        [HttpPost("orders")]
+        [ProducesResponseType(typeof(AdminOrderDetailDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> CreateManualOrder(
+            [FromBody] AdminCreateManualOrderDto dto,
+            CancellationToken ct)
+        {
+            var validation = await _createManualOrderValidator.ValidateAsync(dto, ct);
+            if (!validation.IsValid)
+            {
+                return ValidationProblem(new ValidationProblemDetails(validation.ToClientSafeDictionary()));
+            }
+
+            try
+            {
+                var result = await _managementService.CreateManualOrderAsync(dto, User.GetUserId(), ct);
+                return StatusCode(StatusCodes.Status201Created, result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { message = ClientErrorMessages.NotFoundDetail });
+            }
+            catch (ArgumentException)
+            {
+                return BadRequest(new { message = ClientErrorMessages.InvalidRequestDetail });
+            }
+        }
+
+        [HttpPatch("orders/{orderId}/payment-status")]
+        [ProducesResponseType(typeof(AdminOrderDetailDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateOrderPaymentStatus(
+            string orderId,
+            [FromBody] AdminUpdateOrderPaymentDto dto,
+            CancellationToken ct)
+        {
+            try
+            {
+                var result = await _managementService.UpdateOrderPaymentStatusAsync(orderId, dto, User.GetUserId(), ct);
+                return Ok(result);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { message = ClientErrorMessages.NotFoundDetail });
+            }
+        }
+
         [HttpGet("products")]
         [ProducesResponseType(typeof(AdminPagedResultDto<ProductSummaryDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetProducts(
@@ -301,40 +392,6 @@ namespace api.controllers.admin
             {
                 return NotFound(new { message = ClientErrorMessages.NotFoundDetail });
             }
-        }
-
-        [HttpPatch("products/{productId}/inventory")]
-        [ProducesResponseType(typeof(ProductDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateInventory(
-            string productId,
-            [FromBody] AdminUpdateInventoryDto dto,
-            CancellationToken ct)
-        {
-            try
-            {
-                var result = await _managementService.UpdateInventoryAsync(productId, dto, ct);
-                return Ok(result);
-            }
-            catch (ArgumentException)
-            {
-                return BadRequest(new { message = ClientErrorMessages.InvalidRequestDetail });
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound(new { message = ClientErrorMessages.NotFoundDetail });
-            }
-        }
-
-        [HttpGet("inventory/overview")]
-        [ProducesResponseType(typeof(AdminInventoryOverviewDto), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetInventoryOverview(
-            [FromQuery] int lowStockThreshold = 5,
-            CancellationToken ct = default)
-        {
-            var result = await _managementService.GetInventoryOverviewAsync(lowStockThreshold, ct);
-            return Ok(result);
         }
 
         [HttpGet("settings")]

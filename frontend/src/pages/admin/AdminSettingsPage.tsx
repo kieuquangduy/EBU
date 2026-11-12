@@ -1,9 +1,15 @@
 import { Icon } from "@iconify/react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import type { UpdateShopContactDto } from "../../@types/admin.type";
 import type { UpdateProfileDto } from "../../@types/auth.type";
-import { useAdminSettings, useUpdateAdminSettings } from "../../hooks/useAdmin";
+import {
+  useAdminSettings,
+  useUpdateAdminSettings,
+  useUpdateAdminShopContact,
+} from "../../hooks/useAdmin";
 import { useAuth } from "../../hooks/useAuth";
+import { useShopContact } from "../../hooks/useShopContact";
 import { userService } from "../../services/userService";
 import {
   AdminBadge,
@@ -44,10 +50,21 @@ export default function AdminSettingsPage() {
   const { user, refreshUser, updateAvatar, removeAvatar } = useAuth();
   const settingsQuery = useAdminSettings();
   const updateSettingsMutation = useUpdateAdminSettings();
+  const shopContactQuery = useShopContact();
+  const updateShopContactMutation = useUpdateAdminShopContact();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [settings, setSettings] = useState<AdminSettingsState>(defaultSettings);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [contactForm, setContactForm] = useState<UpdateShopContactDto>({
+    zaloPhone: "",
+    zaloOAId: "",
+    hotline: "",
+    email: "",
+    messengerLink: "",
+    workingHours: "",
+  });
+  const [contactMessage, setContactMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [profileForm, setProfileForm] = useState<UpdateProfileDto>({
     firstName: "",
@@ -113,6 +130,41 @@ export default function AdminSettingsPage() {
       setSavedAt(new Date(settingsQuery.data.updated).toLocaleString("vi-VN"));
     }
   }, [settingsQuery.data]);
+
+  useEffect(() => {
+    if (!shopContactQuery.data) return;
+    setContactForm({
+      zaloPhone: shopContactQuery.data.zaloPhone ?? "",
+      zaloOAId: shopContactQuery.data.zaloOAId ?? "",
+      hotline: shopContactQuery.data.hotline ?? "",
+      email: shopContactQuery.data.email ?? "",
+      messengerLink: shopContactQuery.data.messengerLink ?? "",
+      workingHours: shopContactQuery.data.workingHours ?? "",
+    });
+  }, [shopContactQuery.data]);
+
+  const handleSaveShopContact = async () => {
+    setContactMessage(null);
+    try {
+      await updateShopContactMutation.mutateAsync({
+        zaloPhone: contactForm.zaloPhone.trim(),
+        zaloOAId: contactForm.zaloOAId?.trim() || null,
+        hotline: contactForm.hotline.trim(),
+        email: contactForm.email.trim(),
+        messengerLink: contactForm.messengerLink?.trim() || null,
+        workingHours: contactForm.workingHours?.trim() || null,
+      });
+      setContactMessage({
+        type: "success",
+        text: "Đã cập nhật thông tin Zalo / Hotline / Email hiển thị trên toàn bộ cửa hàng.",
+      });
+    } catch (error) {
+      setContactMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Không thể lưu thông tin liên hệ.",
+      });
+    }
+  };
 
   const updateField = <K extends keyof AdminSettingsState>(key: K, value: AdminSettingsState[K]) => {
     setSettings((current) => ({ ...current, [key]: value }));
@@ -449,6 +501,87 @@ export default function AdminSettingsPage() {
                 disabled={updateSettingsMutation.isPending}
               >
                 Lưu cài đặt quản trị
+              </AdminPrimaryButton>
+            </div>
+          </AdminPanel>
+
+          <AdminPanel>
+            <AdminPanelHeader
+              title="Kênh liên hệ khách hàng (Zalo / Hotline)"
+              subtitle="Hiển thị trên thanh nổi, chân trang và nút Tư vấn qua Zalo"
+            />
+            <div className="space-y-4 px-5 py-5 sm:px-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Số Zalo nhận tư vấn *">
+                  <input
+                    value={contactForm.zaloPhone}
+                    onChange={(e) => setContactForm((c) => ({ ...c, zaloPhone: e.target.value }))}
+                    placeholder="0912345678"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
+                <Field label="Hotline *">
+                  <input
+                    value={contactForm.hotline}
+                    onChange={(e) => setContactForm((c) => ({ ...c, hotline: e.target.value }))}
+                    placeholder="1900 1234"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
+                <Field label="Email liên hệ *">
+                  <input
+                    type="email"
+                    value={contactForm.email}
+                    onChange={(e) => setContactForm((c) => ({ ...c, email: e.target.value }))}
+                    placeholder="support@haushop.vn"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
+                <Field label="Zalo OA ID">
+                  <input
+                    value={contactForm.zaloOAId ?? ""}
+                    onChange={(e) => setContactForm((c) => ({ ...c, zaloOAId: e.target.value }))}
+                    placeholder="Tùy chọn"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
+                <Field label="Link Messenger">
+                  <input
+                    value={contactForm.messengerLink ?? ""}
+                    onChange={(e) => setContactForm((c) => ({ ...c, messengerLink: e.target.value }))}
+                    placeholder="https://m.me/..."
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
+                <Field label="Giờ làm việc">
+                  <input
+                    value={contactForm.workingHours ?? ""}
+                    onChange={(e) => setContactForm((c) => ({ ...c, workingHours: e.target.value }))}
+                    placeholder="8:00 - 21:00 (Thứ 2 - CN)"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
+              </div>
+
+              {contactMessage ? (
+                <div
+                  className={`rounded-lg px-4 py-3 text-sm ${
+                    contactMessage.type === "success"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {contactMessage.text}
+                </div>
+              ) : null}
+
+              <AdminPrimaryButton
+                type="button"
+                onClick={() => void handleSaveShopContact()}
+                disabled={updateShopContactMutation.isPending}
+                className="w-full"
+              >
+                {updateShopContactMutation.isPending ? "Đang lưu..." : "Lưu thông tin liên hệ Shop"}
               </AdminPrimaryButton>
             </div>
           </AdminPanel>

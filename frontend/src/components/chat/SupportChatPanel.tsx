@@ -1,21 +1,35 @@
 import { Icon } from "@iconify/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import type { ChatMessageDto, ChatRoomDto, MessagesReadEventDto } from "../../@types/chat.type";
+import { Link } from "react-router-dom";
+import type {
+  AdminPresenceDto,
+  ChatMessageDto,
+  ChatRoomDto,
+  MessagesReadEventDto,
+  SupportAvailabilityDto,
+} from "../../@types/chat.type";
+import { useToast } from "../../context/toastContext";
 import { useAuth } from "../../hooks/useAuth";
 import { useChatConnection } from "../../hooks/useChatConnection";
+import { routeTo } from "../../lib/routes";
 import { chatService } from "../../services/chatService";
+import { quoteRequestService } from "../../services/quoteRequestService";
+import { formatPrice } from "../../utils/formatPrice";
 
 type Props = {
   onClose: () => void;
   onSwitchToAi?: () => void;
+  productId?: string;
+  quoteRequestId?: string;
+  initialAvailability?: SupportAvailabilityDto | null;
 };
 
 const CUSTOMER_QUICK_MESSAGES = [
-  "Shop tư vấn giúp mình sản phẩm này với ạ!",
-  "Kiểm tra tình trạng đơn hàng giúp mình nhé",
-  "Shop còn size M / L không ạ?",
-  "Chính sách đổi trả hàng như thế nào ạ?",
+  "Shop tư vấn giúp mình mẫu áo này và báo giá theo số lượng nhé!",
+  "Kiểm tra tiến độ yêu cầu báo giá giúp mình với ạ",
+  "Bên mình có hỗ trợ thiết kế mockup logo CLB/lớp miễn phí không ạ?",
+  "Gợi ý chất liệu vải phù hợp cho áo đồng phục giúp mình nhé!",
 ];
 
 const QUICK_EMOJIS = ["👋", "😊", "❤️", "👍", "🙏", "🎉", "😍", "🔥", "🛍️", "📦", "✅", "🤝"];
@@ -43,14 +57,31 @@ function formatDateLabel(isoString: string) {
   return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-export default function SupportChatPanel({ onClose, onSwitchToAi }: Props) {
+export default function SupportChatPanel({
+  onClose,
+  onSwitchToAi,
+  productId,
+  quoteRequestId,
+  initialAvailability,
+}: Props) {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [room, setRoom] = useState<ChatRoomDto | null>(null);
   const [messages, setMessages] = useState<ChatMessageDto[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
+  const [isAdminOnline, setIsAdminOnline] = useState<boolean>(
+    initialAvailability?.isAdminOnline ?? true
+  );
+  const [workingHours, setWorkingHours] = useState<string | null>(
+    initialAvailability?.workingHours ?? null
+  );
+  const [offlinePhone, setOfflinePhone] = useState(user?.phoneNumber ?? "");
+  const [offlineNote, setOfflineNote] = useState("");
+  const [sendingOfflineLead, setSendingOfflineLead] = useState(false);
+  const [offlineLeadSentCode, setOfflineLeadSentCode] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -76,10 +107,15 @@ export default function SupportChatPanel({ onClose, onSwitchToAi }: Props) {
     [user?.id]
   );
 
+  const handleAdminPresenceChanged = useCallback((event: AdminPresenceDto) => {
+    setIsAdminOnline(event.isAdminOnline);
+  }, []);
+
   const { status, joinRoom, leaveRoom, sendMessage, markAsRead } = useChatConnection({
     enabled: Boolean(user),
     onMessage: handleMessage,
     onMessagesRead: handleMessagesRead,
+    onAdminPresenceChanged: handleAdminPresenceChanged,
   });
 
   useEffect(() => {
@@ -90,12 +126,23 @@ export default function SupportChatPanel({ onClose, onSwitchToAi }: Props) {
         setLoading(true);
         setError(null);
 
-        const activeRoom = await chatService.startSupportChat("Support chat");
+        const [activeRoom, availability] = await Promise.all([
+          chatService.startSupportChat({
+            subject: "Support chat",
+            productId: productId ?? null,
+            quoteRequestId: quoteRequestId ?? null,
+          }),
+          chatService.getSupportAvailability().catch(() => null),
+        ]);
         const history = await chatService.getMessages(activeRoom.id, 100);
 
         if (cancelled) return;
         setRoom(activeRoom);
         setMessages(history);
+        if (availability) {
+          setIsAdminOnline(availability.isAdminOnline);
+          setWorkingHours(availability.workingHours ?? null);
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Không tải được cuộc trò chuyện.");
@@ -110,7 +157,7 @@ export default function SupportChatPanel({ onClose, onSwitchToAi }: Props) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [productId, quoteRequestId]);
 
   useEffect(() => {
     if (!room || status !== "connected") return;
@@ -196,7 +243,11 @@ export default function SupportChatPanel({ onClose, onSwitchToAi }: Props) {
           <div className="min-w-0">
             <p className="truncate text-sm font-bold leading-tight">CSKH HauShop</p>
             <p className="truncate text-[11px] text-blue-100">
-              {status === "connected" ? "Đang hoạt động • Phản hồi nhanh" : "Đang kết nối..."}
+              {status !== "connected"
+                ? "Đang kết nối..."
+                : isAdminOnline
+                ? "Admin đang online • Phản hồi nhanh"
+                : "Admin đang offline • Để lại lời nhắn"}
             </p>
           </div>
         </div>
@@ -226,6 +277,93 @@ export default function SupportChatPanel({ onClose, onSwitchToAi }: Props) {
 
       {/* Nội dung hội thoại */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#eef0f3] px-3.5 py-4">
+        {room && (room.productName || room.quoteCode) ? (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs shadow-sm">
+            <Icon icon="lucide:tag" width={14} className="text-[#0068ff] shrink-0" />
+            {room.productName ? (
+              <span className="truncate font-semibold text-slate-700">
+                Mẫu áo: {room.productName}
+              </span>
+            ) : null}
+            {room.quoteCode ? (
+              <span className="font-mono font-bold text-[#0068ff]">
+                Báo giá: {room.quoteCode}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!isAdminOnline && !offlineLeadSentCode ? (
+          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 shadow-sm">
+            <p className="font-semibold">
+              Admin hiện đang offline{workingHours ? ` (${workingHours})` : ""}
+            </p>
+            <p className="mt-0.5 text-[11px] text-amber-800">
+              Bạn vẫn có thể nhắn tin bên dưới hoặc để lại SĐT để shop gọi/nhắn Zalo lại ngay:
+            </p>
+            <div className="mt-2 flex flex-col gap-1.5">
+              <input
+                value={offlinePhone}
+                onChange={(e) => setOfflinePhone(e.target.value)}
+                placeholder="Số điện thoại / Zalo (VD: 0912345678)"
+                className="w-full rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-[#0068ff]"
+              />
+              <div className="flex gap-1.5">
+                <input
+                  value={offlineNote}
+                  onChange={(e) => setOfflineNote(e.target.value)}
+                  placeholder="Nhu cầu nhanh (số lượng, loại áo...)"
+                  className="min-w-0 flex-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-[#0068ff]"
+                />
+                <button
+                  type="button"
+                  disabled={sendingOfflineLead}
+                  onClick={async () => {
+                    const phoneTrim = offlinePhone.trim();
+                    if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(phoneTrim)) {
+                      showToast("Vui lòng nhập đúng SĐT Việt Nam", "warning");
+                      return;
+                    }
+                    setSendingOfflineLead(true);
+                    try {
+                      const res = await quoteRequestService.createQuote({
+                        productId: room?.productId ?? productId ?? null,
+                        customerName:
+                          `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
+                          user?.email ||
+                          "Khách chat offline",
+                        phone: phoneTrim,
+                        email: user?.email ?? null,
+                        quantity: 1,
+                        printTechnique: "Other",
+                        note: offlineNote.trim() || "Khách để lại thông tin khi Admin offline",
+                      });
+                      setOfflineLeadSentCode(res.quoteCode);
+                      showToast(`Đã ghi nhận lời nhắn (${res.quoteCode})`, "success");
+                    } catch (err) {
+                      showToast(
+                        err instanceof Error ? err.message : "Không thể gửi lời nhắn",
+                        "error"
+                      );
+                    } finally {
+                      setSendingOfflineLead(false);
+                    }
+                  }}
+                  className="shrink-0 rounded-lg bg-[#0068ff] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {sendingOfflineLead ? "Đang gửi..." : "Gửi SĐT"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {offlineLeadSentCode ? (
+          <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+            Đã tiếp nhận SĐT của bạn (mã <strong>{offlineLeadSentCode}</strong>). Shop sẽ liên hệ lại sớm nhất!
+          </div>
+        ) : null}
+
         {/* Card giới thiệu đầu khung chat */}
         <div className="mb-4 flex flex-col items-center text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#0084ff] to-[#0068ff] text-white shadow-md">
@@ -314,6 +452,30 @@ export default function SupportChatPanel({ onClose, onSwitchToAi }: Props) {
                         ].join(" ")}
                       >
                         <p className="whitespace-pre-wrap break-words">{message.message}</p>
+                        {message.productCard ? (
+                          <Link
+                            to={routeTo.product(message.productCard.slug)}
+                            onClick={onClose}
+                            className="mt-2 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-2 text-left text-slate-900 shadow-sm transition hover:border-blue-300"
+                          >
+                            {message.productCard.imageUrl ? (
+                              <img
+                                src={message.productCard.imageUrl}
+                                alt={message.productCard.name}
+                                className="h-11 w-11 shrink-0 rounded-lg object-cover"
+                              />
+                            ) : null}
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-semibold text-slate-900">
+                                {message.productCard.name}
+                              </p>
+                              <p className="text-[11px] font-bold text-[#1d4ed8]">
+                                Từ {formatPrice(message.productCard.basePrice)} · Tối thiểu{" "}
+                                {message.productCard.minOrderQuantity} áo
+                              </p>
+                            </div>
+                          </Link>
+                        ) : null}
                         {isLastInGroup ? (
                           <p
                             className={[

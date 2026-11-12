@@ -9,7 +9,6 @@ using api.models.enums;
 using api.services.interfaces.admin;
 using api.services.interfaces.cloud;
 using api.services.interfaces.notification;
-using api.services.interfaces.order;
 using Microsoft.EntityFrameworkCore;
 
 namespace api.services.implementations.admin
@@ -18,7 +17,6 @@ namespace api.services.implementations.admin
     {
         private readonly ApplicationDbContext _context;
         private readonly ICloudinaryService _cloudinaryService;
-        private readonly IOrderService _orderService;
         private readonly INotificationService _notificationService;
         private readonly ILogger<AdminManagementService> _logger;
 
@@ -42,13 +40,11 @@ namespace api.services.implementations.admin
         public AdminManagementService(
             ApplicationDbContext context,
             ICloudinaryService cloudinaryService,
-            IOrderService orderService,
             INotificationService notificationService,
             ILogger<AdminManagementService> logger)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
-            _orderService = orderService;
             _notificationService = notificationService;
             _logger = logger;
         }
@@ -138,6 +134,37 @@ namespace api.services.implementations.admin
                 })
                 .FirstOrDefaultAsync(ct);
 
+            var quoteStats = await _context.QuoteRequests
+                .AsNoTracking()
+                .Where(q => q.UserId == userId)
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    TotalQuotes = g.Count(),
+                    LastQuoteAt = g.Max(x => (DateTime?)x.CreatedAt)
+                })
+                .FirstOrDefaultAsync(ct);
+
+            var recentQuotes = await _context.QuoteRequests
+                .AsNoTracking()
+                .Where(q => q.UserId == userId)
+                .OrderByDescending(q => q.CreatedAt)
+                .Take(5)
+                .Select(q => new AdminRecentQuoteDto
+                {
+                    Id = q.Id,
+                    QuoteCode = q.QuoteCode,
+                    CustomerName = q.CustomerName,
+                    Phone = q.Phone,
+                    OrganizationName = q.OrganizationName,
+                    ProductName = q.Product != null ? q.Product.Name : null,
+                    Quantity = q.Quantity,
+                    QuotedPrice = q.QuotedPrice,
+                    Status = q.Status.ToString(),
+                    CreatedAt = q.CreatedAt
+                })
+                .ToListAsync(ct);
+
             return new AdminUserDetailDto
             {
                 Id = user.Id,
@@ -152,7 +179,10 @@ namespace api.services.implementations.admin
                 TotalOrders = orderStats?.TotalOrders ?? 0,
                 TotalSpent = orderStats?.TotalSpent ?? 0m,
                 LastOrderAt = orderStats?.LastOrderAt,
-                RecentOrders = await _context.Orders.AsNoTracking().Where(o => o.UserId == userId).OrderByDescending(o => o.Created).Take(5).Select(o => new RecentOrderDto { Id = o.Id, CustomerName = ((user.FirstName ?? string.Empty) + " " + (user.LastName ?? string.Empty)).Trim(), TotalAmount = o.Total, Status = o.Status.ToString(), Created = o.Created }).ToListAsync(ct)
+                RecentOrders = await _context.Orders.AsNoTracking().Where(o => o.UserId == userId).OrderByDescending(o => o.Created).Take(5).Select(o => new RecentOrderDto { Id = o.Id, CustomerName = ((user.FirstName ?? string.Empty) + " " + (user.LastName ?? string.Empty)).Trim(), TotalAmount = o.Total, Status = o.Status.ToString(), Created = o.Created }).ToListAsync(ct),
+                TotalQuoteRequests = quoteStats?.TotalQuotes ?? 0,
+                LastQuoteAt = quoteStats?.LastQuoteAt,
+                RecentQuoteRequests = recentQuotes
             };
         }
 
@@ -285,9 +315,6 @@ namespace api.services.implementations.admin
 
             var query = _context.Orders
                 .AsNoTracking()
-                .Include(o => o.User)
-                .Include(o => o.OrderItems)
-                .Include(o => o.Payments)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -295,7 +322,8 @@ namespace api.services.implementations.admin
                 var normalizedSearch = search.Trim();
                 query = query.Where(o =>
                     o.Id.Contains(normalizedSearch) ||
-                    o.User.Email.Contains(normalizedSearch) ||
+                    (o.OrderCode != null && o.OrderCode.Contains(normalizedSearch)) ||
+                    (o.User != null && o.User.Email.Contains(normalizedSearch)) ||
                     o.ReceiverName.Contains(normalizedSearch) ||
                     o.ReceiverPhone.Contains(normalizedSearch));
             }
@@ -315,8 +343,13 @@ namespace api.services.implementations.admin
                 .Select(o => new AdminOrderListItemDto
                 {
                     Id = o.Id,
+                    OrderCode = o.OrderCode,
                     UserId = o.UserId,
-                    CustomerName = ((o.User.FirstName ?? string.Empty) + " " + (o.User.LastName ?? string.Empty)).Trim(),
+                    Source = o.Source.ToString(),
+                    QuoteRequestId = o.QuoteRequestId,
+                    CustomerName = o.User != null
+                        ? ((o.User.FirstName ?? string.Empty) + " " + (o.User.LastName ?? string.Empty)).Trim()
+                        : o.ReceiverName,
                     ReceiverName = o.ReceiverName,
                     ReceiverPhone = o.ReceiverPhone,
                     Total = o.Total,
@@ -326,6 +359,7 @@ namespace api.services.implementations.admin
                         .Select(p => p.Status.ToString())
                         .FirstOrDefault() ?? "Pending",
                     ItemCount = o.OrderItems.Sum(i => i.Quantity),
+                    Note = o.Note,
                     Created = o.Created,
                     Updated = o.Updated
                 })
@@ -357,12 +391,18 @@ namespace api.services.implementations.admin
             return new AdminOrderDetailDto
             {
                 Id = order.Id,
+                OrderCode = order.OrderCode,
                 UserId = order.UserId,
-                CustomerName = ((order.User.FirstName ?? string.Empty) + " " + (order.User.LastName ?? string.Empty)).Trim(),
-                CustomerEmail = order.User.Email,
+                Source = order.Source.ToString(),
+                QuoteRequestId = order.QuoteRequestId,
+                CustomerName = order.User != null
+                    ? ((order.User.FirstName ?? string.Empty) + " " + (order.User.LastName ?? string.Empty)).Trim()
+                    : order.ReceiverName,
+                CustomerEmail = order.User?.Email,
                 ReceiverName = order.ReceiverName,
                 ReceiverPhone = order.ReceiverPhone,
                 AddressLine = order.AddressLine,
+                Note = order.Note,
                 Subtotal = order.Subtotal,
                 ShippingFee = order.ShippingFee,
                 Total = order.Total,
@@ -398,7 +438,380 @@ namespace api.services.implementations.admin
             AdminUpdateOrderStatusDto dto,
             CancellationToken ct = default)
         {
-            await _orderService.UpdateOrderStatusAsync(orderId, dto, null, false, ct);
+            if (!Enum.IsDefined(typeof(OrderStatus), dto.Status))
+            {
+                throw new ArgumentException("Invalid order status.");
+            }
+
+            var order = await _context.Orders
+                .Include(o => o.ShippingDetail)
+                .FirstOrDefaultAsync(o => o.Id == orderId, ct)
+                ?? throw new KeyNotFoundException("Order not found");
+
+            var now = DateTime.UtcNow;
+            order.Status = dto.Status;
+            order.Updated = now;
+
+            var hasShippingUpdate = !string.IsNullOrWhiteSpace(dto.TrackingNumber)
+                || !string.IsNullOrWhiteSpace(dto.CarrierName)
+                || !string.IsNullOrWhiteSpace(dto.CarrierCode)
+                || !string.IsNullOrWhiteSpace(dto.CurrentLocation)
+                || !string.IsNullOrWhiteSpace(dto.TrackingUrl)
+                || dto.EstimatedDelivery.HasValue;
+
+            if (hasShippingUpdate && order.ShippingDetail == null)
+            {
+                order.ShippingDetail = new ShippingDetail
+                {
+                    OrderId = order.Id,
+                    Method = ShippingMethod.Standard,
+                    Fee = order.ShippingFee,
+                    Created = now
+                };
+            }
+
+            if (order.ShippingDetail != null)
+            {
+                if (!string.IsNullOrWhiteSpace(dto.TrackingNumber))
+                    order.ShippingDetail.TrackingNumber = dto.TrackingNumber.Trim();
+                if (!string.IsNullOrWhiteSpace(dto.CarrierName))
+                    order.ShippingDetail.Carrier = dto.CarrierName.Trim();
+                if (!string.IsNullOrWhiteSpace(dto.CarrierCode))
+                    order.ShippingDetail.CarrierCode = dto.CarrierCode.Trim();
+                if (!string.IsNullOrWhiteSpace(dto.CurrentLocation))
+                    order.ShippingDetail.CurrentLocation = dto.CurrentLocation.Trim();
+                if (!string.IsNullOrWhiteSpace(dto.TrackingUrl))
+                    order.ShippingDetail.TrackingUrl = dto.TrackingUrl.Trim();
+                if (dto.EstimatedDelivery.HasValue)
+                    order.ShippingDetail.EstimatedDelivery = dto.EstimatedDelivery;
+                if (dto.Status is OrderStatus.Delivered or OrderStatus.Completed)
+                    order.ShippingDetail.DeliveredAt ??= now;
+
+                order.ShippingDetail.Updated = now;
+            }
+
+            _context.OrderStatusHistories.Add(new OrderStatusHistory
+            {
+                Id = Guid.NewGuid().ToString(),
+                OrderId = order.Id,
+                Status = dto.Status,
+                Title = $"Cập nhật trạng thái: {dto.Status}",
+                Description = dto.Note,
+                Location = dto.CurrentLocation,
+                Note = dto.Note,
+                ActorRole = Role.Admin.ToString(),
+                Created = now
+            });
+
+            await _context.SaveChangesAsync(ct);
+            return await GetOrderByIdAsync(orderId, ct);
+        }
+
+        public async Task<AdminOrderDetailDto> CreateOrderFromQuoteAsync(
+            string quoteRequestId,
+            AdminCreateOrderFromQuoteDto dto,
+            string? adminUserId,
+            CancellationToken ct = default)
+        {
+            var quote = await _context.QuoteRequests
+                .Include(q => q.Product)
+                .FirstOrDefaultAsync(q => q.Id == quoteRequestId, ct)
+                ?? throw new KeyNotFoundException("Quote request not found");
+
+            if (quote.Status is QuoteStatus.Cancelled or QuoteStatus.Rejected)
+            {
+                throw new InvalidOperationException("Không thể tạo đơn hàng từ yêu cầu báo giá đã hủy hoặc từ chối.");
+            }
+
+            var hasActiveOrder = await _context.Orders
+                .AsNoTracking()
+                .AnyAsync(o => o.QuoteRequestId == quoteRequestId && o.Status != OrderStatus.Cancelled, ct);
+
+            if (hasActiveOrder)
+            {
+                throw new InvalidOperationException("Yêu cầu báo giá này đã có đơn hàng đang hoạt động.");
+            }
+
+            var subtotal = dto.Subtotal ?? quote.QuotedPrice ?? 0m;
+            if (subtotal <= 0m)
+            {
+                throw new ArgumentException("Vui lòng nhập giá báo hoặc giá trị đơn hàng lớn hơn 0.");
+            }
+
+            var unitPrice = Math.Round(subtotal / Math.Max(quote.Quantity, 1), 2);
+            var productName = quote.Product?.Name
+                ?? (string.IsNullOrWhiteSpace(quote.OrganizationName)
+                    ? $"Áo custom ({quote.QuoteCode})"
+                    : $"Áo custom - {quote.OrganizationName}");
+
+            var now = DateTime.UtcNow;
+            if (quote.Status is QuoteStatus.Pending or QuoteStatus.Contacted or QuoteStatus.Quoted)
+            {
+                quote.Status = QuoteStatus.Accepted;
+            }
+
+            quote.QuotedPrice ??= subtotal;
+            quote.QuotedAt ??= now;
+            quote.UpdatedAt = now;
+
+            var items = new List<OrderItem>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    ProductId = quote.ProductId,
+                    ProductName = productName,
+                    VariantColor = quote.ColorSelection,
+                    Quantity = quote.Quantity,
+                    Price = unitPrice,
+                    Total = subtotal,
+                    Created = now
+                }
+            };
+
+            return await CreateAdminOrderRecordAsync(
+                quote.UserId,
+                OrderSource.Rfq,
+                quote.Id,
+                string.IsNullOrWhiteSpace(dto.ReceiverName) ? quote.CustomerName : dto.ReceiverName.Trim(),
+                string.IsNullOrWhiteSpace(dto.ReceiverPhone) ? quote.Phone : dto.ReceiverPhone.Trim(),
+                dto.AddressLine.Trim(),
+                string.IsNullOrWhiteSpace(dto.Note) ? quote.Note : dto.Note.Trim(),
+                subtotal,
+                dto.ShippingFee,
+                dto.IsPaid,
+                dto.PaidAt,
+                items,
+                adminUserId,
+                $"Tạo đơn hàng từ yêu cầu báo giá {quote.QuoteCode}",
+                ct);
+        }
+
+        public async Task<AdminOrderDetailDto> CreateManualOrderAsync(
+            AdminCreateManualOrderDto dto,
+            string? adminUserId,
+            CancellationToken ct = default)
+        {
+            string? userId = null;
+            if (!string.IsNullOrWhiteSpace(dto.UserId))
+            {
+                userId = dto.UserId.Trim();
+                var userExists = await _context.Users.AsNoTracking().AnyAsync(u => u.Id == userId, ct);
+                if (!userExists)
+                {
+                    throw new KeyNotFoundException("User not found");
+                }
+            }
+
+            var productIds = dto.Items
+                .Select(i => i.ProductId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id!.Trim())
+                .Distinct()
+                .ToList();
+
+            var validProducts = productIds.Count == 0
+                ? new HashSet<string>()
+                : (await _context.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct)).ToHashSet();
+
+            foreach (var productId in productIds)
+            {
+                if (!validProducts.Contains(productId))
+                {
+                    throw new KeyNotFoundException($"Product {productId} not found");
+                }
+            }
+
+            var now = DateTime.UtcNow;
+            var items = dto.Items.Select(item =>
+            {
+                var lineTotal = Math.Round(item.Quantity * item.UnitPrice, 2);
+                return new OrderItem
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    ProductId = string.IsNullOrWhiteSpace(item.ProductId) ? null : item.ProductId.Trim(),
+                    ProductName = item.ProductName.Trim(),
+                    VariantSize = string.IsNullOrWhiteSpace(item.VariantSize) ? null : item.VariantSize.Trim(),
+                    VariantColor = string.IsNullOrWhiteSpace(item.VariantColor) ? null : item.VariantColor.Trim(),
+                    Quantity = item.Quantity,
+                    Price = item.UnitPrice,
+                    Total = lineTotal,
+                    Created = now
+                };
+            }).ToList();
+
+            var subtotal = items.Sum(i => i.Total);
+            var source = dto.Source == OrderSource.Storefront ? OrderSource.ManualZalo : dto.Source;
+
+            return await CreateAdminOrderRecordAsync(
+                userId,
+                source,
+                null,
+                dto.ReceiverName.Trim(),
+                dto.ReceiverPhone.Trim(),
+                dto.AddressLine.Trim(),
+                string.IsNullOrWhiteSpace(dto.Note) ? null : dto.Note.Trim(),
+                subtotal,
+                dto.ShippingFee,
+                dto.IsPaid,
+                dto.PaidAt,
+                items,
+                adminUserId,
+                $"Admin tạo đơn thủ công ({source})",
+                ct);
+        }
+
+        public async Task<AdminOrderDetailDto> UpdateOrderPaymentStatusAsync(
+            string orderId,
+            AdminUpdateOrderPaymentDto dto,
+            string? adminUserId,
+            CancellationToken ct = default)
+        {
+            var order = await _context.Orders
+                .Include(o => o.Payments)
+                .Include(o => o.StatusHistories)
+                .FirstOrDefaultAsync(o => o.Id == orderId, ct)
+                ?? throw new KeyNotFoundException("Order not found");
+
+            var now = DateTime.UtcNow;
+            var targetStatus = dto.IsPaid ? PaymentStatus.Paid : PaymentStatus.Pending;
+            var paidAt = dto.IsPaid ? (dto.PaidAt ?? now) : (DateTime?)null;
+
+            var latestPayment = order.Payments
+                .OrderByDescending(p => p.Created)
+                .FirstOrDefault();
+
+            if (latestPayment is not null)
+            {
+                latestPayment.Status = targetStatus;
+                latestPayment.PaidAt = paidAt;
+                latestPayment.Updated = now;
+                if (!string.IsNullOrWhiteSpace(dto.Note))
+                {
+                    latestPayment.OrderInfo = dto.Note.Trim();
+                }
+            }
+            else
+            {
+                _context.Payments.Add(new Payment
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    OrderId = order.Id,
+                    Method = PaymentMethod.COD,
+                    Provider = "Manual",
+                    Amount = Math.Max(order.Total, 1m),
+                    Status = targetStatus,
+                    PaidAt = paidAt,
+                    OrderInfo = string.IsNullOrWhiteSpace(dto.Note) ? "Admin cập nhật thanh toán" : dto.Note.Trim(),
+                    Created = now,
+                    Updated = now
+                });
+            }
+
+            order.Updated = now;
+            order.StatusHistories.Add(new OrderStatusHistory
+            {
+                Id = Guid.NewGuid().ToString(),
+                OrderId = order.Id,
+                Status = order.Status,
+                Title = dto.IsPaid ? "Xác nhận đã thanh toán" : "Cập nhật chưa thanh toán",
+                Description = string.IsNullOrWhiteSpace(dto.Note)
+                    ? (dto.IsPaid ? "Admin xác nhận đơn hàng đã thu tiền." : "Admin chuyển trạng thái thanh toán về chờ thu.")
+                    : dto.Note.Trim(),
+                ActorUserId = adminUserId,
+                ActorRole = Role.Admin.ToString(),
+                Created = now
+            });
+
+            await _context.SaveChangesAsync(ct);
+            return await GetOrderByIdAsync(order.Id, ct);
+        }
+
+        private async Task<AdminOrderDetailDto> CreateAdminOrderRecordAsync(
+            string? userId,
+            OrderSource source,
+            string? quoteRequestId,
+            string receiverName,
+            string receiverPhone,
+            string addressLine,
+            string? note,
+            decimal subtotal,
+            decimal shippingFee,
+            bool isPaid,
+            DateTime? paidAt,
+            List<OrderItem> items,
+            string? adminUserId,
+            string historyDescription,
+            CancellationToken ct)
+        {
+            var now = DateTime.UtcNow;
+            var total = subtotal + shippingFee;
+            var orderId = Guid.NewGuid().ToString();
+            var orderCode = $"ORD-{now:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..4].ToUpperInvariant()}";
+
+            foreach (var item in items)
+            {
+                item.OrderId = orderId;
+            }
+
+            var order = new Order
+            {
+                Id = orderId,
+                OrderCode = orderCode,
+                UserId = userId,
+                Source = source,
+                QuoteRequestId = quoteRequestId,
+                Subtotal = subtotal,
+                ShippingFee = shippingFee,
+                Total = total,
+                Status = OrderStatus.SellerConfirmed,
+                ReceiverName = receiverName,
+                ReceiverPhone = receiverPhone,
+                AddressLine = addressLine,
+                Note = note,
+                Created = now,
+                Updated = now,
+                OrderItems = items,
+                StatusHistories = new List<OrderStatusHistory>
+                {
+                    new()
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        OrderId = orderId,
+                        Status = OrderStatus.SellerConfirmed,
+                        Title = "Đã tạo đơn hàng",
+                        Description = historyDescription,
+                        Note = note,
+                        ActorUserId = adminUserId,
+                        ActorRole = Role.Admin.ToString(),
+                        Created = now
+                    }
+                }
+            };
+
+            if (total > 0)
+            {
+                order.Payments = new List<Payment>
+                {
+                    new()
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        OrderId = orderId,
+                        Method = PaymentMethod.COD,
+                        Provider = "Manual",
+                        Amount = total,
+                        Status = isPaid ? PaymentStatus.Paid : PaymentStatus.Pending,
+                        PaidAt = isPaid ? (paidAt ?? now) : null,
+                        OrderInfo = note ?? historyDescription,
+                        Created = now,
+                        Updated = now
+                    }
+                };
+            }
+
+            _context.Orders.Add(order);
+            await _context.SaveChangesAsync(ct);
+
             return await GetOrderByIdAsync(orderId, ct);
         }
 
@@ -500,9 +913,14 @@ namespace api.services.implementations.admin
                 throw new ArgumentException("Product name is required.");
             }
 
-            if (dto.Price < 0 || dto.Stock < 0 || dto.AverageRating < 0 || dto.AverageRating > 5 || dto.ReviewCount < 0)
+            if ((dto.BasePrice ?? dto.Price) < 0 || dto.Stock < 0 || dto.AverageRating < 0 || dto.AverageRating > 5 || dto.ReviewCount < 0)
             {
                 throw new ArgumentException("Invalid product values.");
+            }
+
+            if (dto.MinOrderQuantity is < 1 or > 100000)
+            {
+                throw new ArgumentException("MinOrderQuantity must be between 1 and 100000.");
             }
 
             var normalizedSku = dto.Sku.Trim();
@@ -541,6 +959,8 @@ namespace api.services.implementations.admin
                 ReviewCount = dto.ReviewCount,
                 Created = DateTime.UtcNow
             };
+
+            ProductRfqMetadataHelper.ApplyCreateFields(product, dto);
 
             _context.Products.Add(product);
             await _context.SaveChangesAsync(ct);
@@ -602,11 +1022,22 @@ namespace api.services.implementations.admin
                 product.Description = dto.Description.Trim();
             }
 
-            if (dto.Price.HasValue)
+            if (dto.Price.HasValue && dto.Price.Value < 0)
             {
-                if (dto.Price.Value < 0) throw new ArgumentException("Price must be greater than or equal to 0.");
-                product.Price = dto.Price.Value;
+                throw new ArgumentException("Price must be greater than or equal to 0.");
             }
+
+            if (dto.BasePrice.HasValue && dto.BasePrice.Value < 0)
+            {
+                throw new ArgumentException("BasePrice must be greater than or equal to 0.");
+            }
+
+            if (dto.MinOrderQuantity is < 1 or > 100000)
+            {
+                throw new ArgumentException("MinOrderQuantity must be between 1 and 100000.");
+            }
+
+            ProductRfqMetadataHelper.ApplyUpdateFields(product, dto);
 
             if (dto.Stock.HasValue)
             {
@@ -710,114 +1141,6 @@ namespace api.services.implementations.admin
             product.IsActive = !product.IsActive;
             product.Updated = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync(ct);
-
-            return await GetProductByIdAsync(productId, ct);
-        }
-
-        public async Task<AdminInventoryOverviewDto> GetInventoryOverviewAsync(
-            int lowStockThreshold = 5,
-            CancellationToken ct = default)
-        {
-            lowStockThreshold = Math.Max(lowStockThreshold, 0);
-
-            var inventoryQuery = _context.Products
-                .AsNoTracking()
-                .Select(p => new
-                {
-                    p.Id,
-                    p.Sku,
-                    p.Name,
-                    p.IsActive,
-                    EffectiveStock = p.ProductVariants.Any(v => v.IsActive)
-                        ? p.ProductVariants.Where(v => v.IsActive).Sum(v => (int?)v.Stock) ?? 0
-                        : p.Stock
-                });
-
-            var totalProducts = await _context.Products.CountAsync(ct);
-            var activeProducts = await _context.Products.CountAsync(p => p.IsActive, ct);
-            var totalVariants = await _context.ProductVariants.CountAsync(ct);
-            var activeVariants = await _context.ProductVariants.CountAsync(v => v.IsActive, ct);
-            var totalStock = await inventoryQuery.SumAsync(x => x.EffectiveStock, ct);
-            var lowStockCount = await inventoryQuery.CountAsync(x => x.IsActive && x.EffectiveStock <= lowStockThreshold, ct);
-            var outOfStockCount = await inventoryQuery.CountAsync(x => x.IsActive && x.EffectiveStock <= 0, ct);
-
-            var lowStockProducts = await inventoryQuery
-                .Where(x => x.IsActive && x.EffectiveStock <= lowStockThreshold)
-                .OrderBy(x => x.EffectiveStock)
-                .ThenBy(x => x.Name)
-                .Take(20)
-                .Select(x => new LowStockProductDto
-                {
-                    Id = x.Id,
-                    Sku = x.Sku,
-                    Name = x.Name,
-                    Stock = x.EffectiveStock,
-                    IsActive = x.IsActive
-                })
-                .ToListAsync(ct);
-
-            return new AdminInventoryOverviewDto
-            {
-                TotalProducts = totalProducts,
-                ActiveProducts = activeProducts,
-                TotalVariants = totalVariants,
-                ActiveVariants = activeVariants,
-                TotalStock = totalStock,
-                LowStockCount = lowStockCount,
-                OutOfStockCount = outOfStockCount,
-                LowStockProducts = lowStockProducts
-            };
-        }
-
-        public async Task<ProductDto> UpdateInventoryAsync(
-            string productId,
-            AdminUpdateInventoryDto dto,
-            CancellationToken ct = default)
-        {
-            var product = await _context.Products
-                .Include(p => p.ProductVariants)
-                .FirstOrDefaultAsync(p => p.Id == productId, ct)
-                ?? throw new KeyNotFoundException("Product not found");
-
-            if (dto.Stock.HasValue)
-            {
-                if (dto.Stock.Value < 0)
-                {
-                    throw new ArgumentException("Stock must be greater than or equal to 0.");
-                }
-
-                product.Stock = dto.Stock.Value;
-            }
-
-            if (dto.Variants.Count > 0)
-            {
-                foreach (var variantDto in dto.Variants)
-                {
-                    var variant = product.ProductVariants.FirstOrDefault(v => v.Id == variantDto.VariantId)
-                        ?? throw new KeyNotFoundException($"Variant not found: {variantDto.VariantId}");
-
-                    if (variantDto.Stock < 0)
-                    {
-                        throw new ArgumentException("Variant stock must be greater than or equal to 0.");
-                    }
-
-                    variant.Stock = variantDto.Stock;
-                    if (variantDto.IsActive.HasValue)
-                    {
-                        variant.IsActive = variantDto.IsActive.Value;
-                    }
-
-                    variant.UpdateAt = DateTime.UtcNow;
-                }
-
-                if (product.ProductVariants.Any(v => v.IsActive))
-                {
-                    product.Stock = product.ProductVariants.Where(v => v.IsActive).Sum(v => v.Stock);
-                }
-            }
-
-            product.Updated = DateTime.UtcNow;
             await _context.SaveChangesAsync(ct);
 
             return await GetProductByIdAsync(productId, ct);

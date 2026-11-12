@@ -1,9 +1,20 @@
 import { Icon } from "@iconify/react";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import type { AdminUpdateOrderStatusDto } from "../../@types/admin.type";
+import type {
+  AdminCreateOrderItemDto,
+  AdminUpdateOrderStatusDto,
+  OrderSource,
+} from "../../@types/admin.type";
 import { OrderStatuses } from "../../@types/enums.type";
-import { useAdminOrder, useAdminOrders, useUpdateAdminOrderStatus } from "../../hooks/useAdmin";
+import { useToast } from "../../context/toastContext";
+import {
+  useAdminOrder,
+  useAdminOrders,
+  useCreateManualOrder,
+  useUpdateAdminOrderPayment,
+  useUpdateAdminOrderStatus,
+} from "../../hooks/useAdmin";
 import { useDebounce } from "../../hooks/useDebounce";
 import { formatPrice } from "../../utils/formatPrice";
 import {
@@ -75,8 +86,21 @@ function toDateTimeInputValue(value?: string | null) {
   return date.toISOString().slice(0, 16);
 }
 
+function formatOrderSourceLabel(source?: string | null) {
+  if (source === "FromQuote") return "Từ báo giá";
+  if (source === "ManualZalo") return "Zalo / Nhập tay";
+  return "Website";
+}
+
+function orderSourceTone(source?: string | null) {
+  if (source === "FromQuote") return "bg-indigo-100 text-indigo-800";
+  if (source === "ManualZalo") return "bg-sky-100 text-sky-800";
+  return "bg-slate-100 text-slate-700";
+}
+
 export default function AdminOrdersPage() {
   const location = useLocation();
+  const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<AdminUpdateOrderStatusDto["status"] | "">("");
   const [page, setPage] = useState(1);
@@ -107,8 +131,22 @@ export default function AdminOrdersPage() {
   const ordersQuery = useAdminOrders(filters);
   const orderDetailQuery = useAdminOrder(selectedOrderId);
   const updateStatusMutation = useUpdateAdminOrderStatus();
+  const updatePaymentMutation = useUpdateAdminOrderPayment();
+  const createManualOrderMutation = useCreateManualOrder();
   const orderDetail = orderDetailQuery.data;
   const orders = ordersQuery.data?.items ?? [];
+
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [manualReceiverName, setManualReceiverName] = useState("");
+  const [manualReceiverPhone, setManualReceiverPhone] = useState("");
+  const [manualAddressLine, setManualAddressLine] = useState("");
+  const [manualSource, setManualSource] = useState<OrderSource>("ManualZalo");
+  const [manualShippingFee, setManualShippingFee] = useState("0");
+  const [manualNote, setManualNote] = useState("");
+  const [manualIsPaid, setManualIsPaid] = useState(false);
+  const [manualItems, setManualItems] = useState<AdminCreateOrderItemDto[]>([
+    { productName: "", variantSize: "", variantColor: "", quantity: 10, unitPrice: 120000 },
+  ]);
 
   useEffect(() => {
     const orderId = new URLSearchParams(location.search).get("orderId");
@@ -169,8 +207,65 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleCreateManualOrder = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const validItems = manualItems.filter((item) => item.productName.trim() && item.quantity > 0);
+    if (!manualReceiverName.trim() || !manualReceiverPhone.trim() || !manualAddressLine.trim()) {
+      showToast("Vui lòng nhập đầy đủ tên, SĐT và địa chỉ người nhận", "warning");
+      return;
+    }
+    if (!validItems.length) {
+      showToast("Cần ít nhất 1 dòng sản phẩm hợp lệ", "warning");
+      return;
+    }
+
+    try {
+      const created = await createManualOrderMutation.mutateAsync({
+        receiverName: manualReceiverName.trim(),
+        receiverPhone: manualReceiverPhone.trim(),
+        addressLine: manualAddressLine.trim(),
+        source: manualSource,
+        shippingFee: Number(manualShippingFee) || 0,
+        note: manualNote.trim() || null,
+        isPaid: manualIsPaid,
+        paidAt: manualIsPaid ? new Date().toISOString() : null,
+        items: validItems.map((item) => ({
+          ...item,
+          productName: item.productName.trim(),
+          variantSize: item.variantSize?.trim() || null,
+          variantColor: item.variantColor?.trim() || null,
+        })),
+      });
+      setManualModalOpen(false);
+      setSelectedOrderId(created.id);
+      setManualReceiverName("");
+      setManualReceiverPhone("");
+      setManualAddressLine("");
+      setManualNote("");
+      setManualItems([
+        { productName: "", variantSize: "", variantColor: "", quantity: 10, unitPrice: 120000 },
+      ]);
+      showToast("Đã tạo đơn hàng thủ công thành công", "success");
+    } catch (error) {
+      showToast((error as Error).message || "Không thể tạo đơn hàng", "error");
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Quản lý đơn hàng &amp; doanh thu</h2>
+          <p className="text-xs text-slate-500">
+            Theo dõi đơn chốt từ RFQ, tạo đơn thủ công khi khách chốt qua Zalo và đối soát thanh toán.
+          </p>
+        </div>
+        <AdminPrimaryButton type="button" onClick={() => setManualModalOpen(true)}>
+          <Icon icon="mdi:plus" width={18} className="mr-1.5" />
+          Tạo đơn thủ công (Zalo)
+        </AdminPrimaryButton>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <AdminStatCard
           label="Tổng đơn trong trang"
@@ -279,9 +374,12 @@ export default function AdminOrdersPage() {
                       </td>
                       <td
                         className="truncate whitespace-nowrap px-3 py-3 font-medium text-slate-800"
-                        title={order.id}
+                        title={order.orderCode || order.id}
                       >
-                        {order.id}
+                        <div className="truncate">{order.orderCode || order.id}</div>
+                        <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${orderSourceTone(order.source)}`}>
+                          {formatOrderSourceLabel(order.source)}
+                        </span>
                       </td>
                       <td
                         className="truncate whitespace-nowrap px-3 py-3 font-normal text-slate-700"
@@ -385,10 +483,22 @@ export default function AdminOrdersPage() {
                 <div className="rounded-lg border border-slate-200/80 bg-white p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="truncate text-lg font-semibold text-slate-900">{orderDetail.id}</p>
+                      <p className="truncate text-lg font-semibold text-slate-900">
+                        {orderDetail.orderCode || orderDetail.id}
+                      </p>
                       <p className="truncate text-sm text-slate-600">
                         {orderDetail.customerName || "Khách lẻ"} · {orderDetail.customerEmail || "Không có thư điện tử"}
                       </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <AdminBadge className={orderSourceTone(orderDetail.source)}>
+                          Nguồn: {formatOrderSourceLabel(orderDetail.source)}
+                        </AdminBadge>
+                        {orderDetail.quoteRequestId ? (
+                          <AdminBadge className="bg-blue-50 text-blue-700">
+                            Liên kết RFQ
+                          </AdminBadge>
+                        ) : null}
+                      </div>
                     </div>
                     <AdminBadge className={statusTone(orderDetail.status)}>
                       {formatOrderStatusLabel(orderDetail.status)}
@@ -399,6 +509,34 @@ export default function AdminOrdersPage() {
                     <InfoCard label="Thanh toán" value={formatPaymentStatusLabel(orderDetail.paymentStatus)} />
                     <InfoCard label="Tạm tính" value={formatPrice(orderDetail.subtotal)} />
                     <InfoCard label="Phí vận chuyển" value={formatPrice(orderDetail.shippingFee)} />
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <AdminSecondaryButton
+                      type="button"
+                      disabled={updatePaymentMutation.isPending}
+                      onClick={() =>
+                        void updatePaymentMutation
+                          .mutateAsync({
+                            orderId: orderDetail.id,
+                            dto: {
+                              isPaid: orderDetail.paymentStatus !== "Paid",
+                              paidAt:
+                                orderDetail.paymentStatus !== "Paid"
+                                  ? new Date().toISOString()
+                                  : null,
+                            },
+                          })
+                          .then(() => showToast("Đã cập nhật trạng thái thanh toán", "success"))
+                          .catch((err: unknown) =>
+                            showToast((err as Error).message || "Lỗi cập nhật thanh toán", "error")
+                          )
+                      }
+                      className="px-3 py-1.5 text-xs"
+                    >
+                      {orderDetail.paymentStatus === "Paid"
+                        ? "Chuyển sang Chờ thanh toán"
+                        : "Đánh dấu Đã thanh toán"}
+                    </AdminSecondaryButton>
                   </div>
                 </div>
 
@@ -579,6 +717,203 @@ export default function AdminOrdersPage() {
           </AdminPanel>
         </div>
       </div>
+
+      {manualModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setManualModalOpen(false)}
+        >
+          <form
+            onSubmit={handleCreateManualOrder}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Tạo đơn hàng thủ công (Zalo / Khách lẻ)</h3>
+              <button
+                type="button"
+                onClick={() => setManualModalOpen(false)}
+                className="rounded p-1 text-slate-400 hover:bg-slate-100"
+              >
+                <Icon icon="mdi:close" width={20} />
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Người nhận *</label>
+                <input
+                  value={manualReceiverName}
+                  onChange={(e) => setManualReceiverName(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Số điện thoại *</label>
+                <input
+                  value={manualReceiverPhone}
+                  onChange={(e) => setManualReceiverPhone(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Nguồn đơn</label>
+                <select
+                  value={manualSource}
+                  onChange={(e) => setManualSource(e.target.value as OrderSource)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="ManualZalo">Zalo / Nhập tay</option>
+                  <option value="FromQuote">Từ báo giá</option>
+                  <option value="Storefront">Storefront</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">Địa chỉ giao hàng *</label>
+              <input
+                value={manualAddressLine}
+                onChange={(e) => setManualAddressLine(e.target.value)}
+                required
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-slate-200 p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Danh sách sản phẩm
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setManualItems((prev) => [
+                      ...prev,
+                      { productName: "", variantSize: "", variantColor: "", quantity: 10, unitPrice: 120000 },
+                    ])
+                  }
+                  className="text-xs font-semibold text-blue-700 hover:underline"
+                >
+                  + Thêm dòng
+                </button>
+              </div>
+              {manualItems.map((item, idx) => (
+                <div key={idx} className="grid gap-2 sm:grid-cols-[1.5fr_70px_80px_70px_100px_auto] items-center">
+                  <input
+                    value={item.productName}
+                    onChange={(e) =>
+                      setManualItems((prev) =>
+                        prev.map((row, i) => (i === idx ? { ...row, productName: e.target.value } : row))
+                      )
+                    }
+                    placeholder="Tên mẫu áo"
+                    className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs"
+                  />
+                  <input
+                    value={item.variantSize ?? ""}
+                    onChange={(e) =>
+                      setManualItems((prev) =>
+                        prev.map((row, i) => (i === idx ? { ...row, variantSize: e.target.value } : row))
+                      )
+                    }
+                    placeholder="Size"
+                    className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
+                  />
+                  <input
+                    value={item.variantColor ?? ""}
+                    onChange={(e) =>
+                      setManualItems((prev) =>
+                        prev.map((row, i) => (i === idx ? { ...row, variantColor: e.target.value } : row))
+                      )
+                    }
+                    placeholder="Màu"
+                    className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    value={item.quantity}
+                    onChange={(e) =>
+                      setManualItems((prev) =>
+                        prev.map((row, i) =>
+                          i === idx ? { ...row, quantity: Math.max(1, Number(e.target.value) || 1) } : row
+                        )
+                      )
+                    }
+                    placeholder="SL"
+                    className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    value={item.unitPrice}
+                    onChange={(e) =>
+                      setManualItems((prev) =>
+                        prev.map((row, i) =>
+                          i === idx ? { ...row, unitPrice: Math.max(0, Number(e.target.value) || 0) } : row
+                        )
+                      )
+                    }
+                    placeholder="Đơn giá"
+                    className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
+                  />
+                  {manualItems.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setManualItems((prev) => prev.filter((_, i) => i !== idx))}
+                      className="rounded p-1 text-red-500 hover:bg-red-50"
+                    >
+                      <Icon icon="mdi:trash-can-outline" width={16} />
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Phí vận chuyển</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={manualShippingFee}
+                  onChange={(e) => setManualShippingFee(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Ghi chú đơn</label>
+                <input
+                  value={manualNote}
+                  onChange={(e) => setManualNote(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={manualIsPaid}
+                onChange={(e) => setManualIsPaid(e.target.checked)}
+              />
+              Đã thanh toán (cộng vào doanh thu thực thu)
+            </label>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <AdminSecondaryButton type="button" onClick={() => setManualModalOpen(false)}>
+                Hủy
+              </AdminSecondaryButton>
+              <AdminPrimaryButton type="submit" disabled={createManualOrderMutation.isPending}>
+                {createManualOrderMutation.isPending ? "Đang tạo..." : "Lưu đơn hàng"}
+              </AdminPrimaryButton>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

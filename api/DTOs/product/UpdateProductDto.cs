@@ -12,6 +12,13 @@ namespace api.DTOs.product
         public string? Slug { get; set; }
         public string? Description { get; set; }
         public decimal? Price { get; set; }
+        public decimal? BasePrice { get; set; }
+        public decimal? OriginalPrice { get; set; }
+        public int? DiscountPercent { get; set; }
+        public string? PriceNote { get; set; }
+        public List<string>? AvailableMaterials { get; set; }
+        public List<string>? AvailablePrintTechniques { get; set; }
+        public int? MinOrderQuantity { get; set; }
         public bool? Taxable { get; set; }
         public bool? IsActive { get; set; }
         public string? BrandId { get; set; }

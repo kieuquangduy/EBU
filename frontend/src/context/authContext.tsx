@@ -63,8 +63,7 @@ function removeAccountScopedQueries(): void {
                 scope === 'wishlist' ||
                 scope === 'auth' ||
                 scope === 'admin' ||
-                scope === 'cart' ||
-                scope === 'orders' ||
+                scope === 'quotes' ||
                 scope === 'notifications'
             );
         },

@@ -40,8 +40,21 @@ namespace api.services.interfaces.admin
             AdminUpdateOrderStatusDto dto,
             CancellationToken ct = default);
 
-        Task<AdminInventoryOverviewDto> GetInventoryOverviewAsync(
-            int lowStockThreshold = 5,
+        Task<AdminOrderDetailDto> CreateOrderFromQuoteAsync(
+            string quoteRequestId,
+            AdminCreateOrderFromQuoteDto dto,
+            string? adminUserId,
+            CancellationToken ct = default);
+
+        Task<AdminOrderDetailDto> CreateManualOrderAsync(
+            AdminCreateManualOrderDto dto,
+            string? adminUserId,
+            CancellationToken ct = default);
+
+        Task<AdminOrderDetailDto> UpdateOrderPaymentStatusAsync(
+            string orderId,
+            AdminUpdateOrderPaymentDto dto,
+            string? adminUserId,
             CancellationToken ct = default);
 
         Task<AdminPagedResultDto<ProductSummaryDto>> GetProductsAsync(
@@ -63,11 +76,6 @@ namespace api.services.interfaces.admin
         Task DeleteProductAsync(string productId, CancellationToken ct = default);
 
         Task<ProductDto> ToggleProductActiveAsync(string productId, CancellationToken ct = default);
-
-        Task<ProductDto> UpdateInventoryAsync(
-            string productId,
-            AdminUpdateInventoryDto dto,
-            CancellationToken ct = default);
 
         Task<AdminSettingsDto> GetSettingsAsync(CancellationToken ct = default);
 

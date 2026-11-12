@@ -17,6 +17,18 @@ namespace api.mappings
             Slug = p.Slug,
             Description = p.Description,
             Price = p.Price,
+            BasePrice = ProductRfqMetadataHelper.ResolveBasePrice(p),
+            OriginalPrice = p.OriginalPrice,
+            DiscountPercent = ProductRfqMetadataHelper.ResolveDiscountPercent(
+                ProductRfqMetadataHelper.ResolveBasePrice(p),
+                p.OriginalPrice,
+                p.DiscountPercent),
+            PriceNote = string.IsNullOrWhiteSpace(p.PriceNote)
+                ? ProductRfqMetadataHelper.DefaultPriceNote
+                : p.PriceNote,
+            AvailableMaterials = ProductRfqMetadataHelper.DeserializeOptions(p.AvailableMaterials),
+            AvailablePrintTechniques = ProductRfqMetadataHelper.DeserializeOptions(p.AvailablePrintTechniques),
+            MinOrderQuantity = p.MinOrderQuantity > 0 ? p.MinOrderQuantity : ProductRfqMetadataHelper.DefaultMinOrderQuantity,
             Taxable = p.Taxable,
             IsActive = p.IsActive,
             ImageUrl = p.ImageUrl,

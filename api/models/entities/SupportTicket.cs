@@ -15,6 +15,10 @@ namespace api.models.entities
         public User? AssignedTo { get; set; }
         public string ChatRoomId { get; set; }
         public ChatRoom ChatRoom { get; set; }
+        public string? ProductId { get; set; }
+        public Product? Product { get; set; }
+        public string? QuoteRequestId { get; set; }
+        public QuoteRequest? QuoteRequest { get; set; }
         public string Subject { get; set; }
         public SupportTicketStatus Status { get; set; } = SupportTicketStatus.Open;
         public SupportTicketPriority Priority { get; set; } = SupportTicketPriority.Low;

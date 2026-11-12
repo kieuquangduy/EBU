@@ -122,44 +122,18 @@ namespace api.services.implementations.admin
                 })
                 .ToListAsync(ct);
 
-            var lowStockProducts = await _context.Products
-                .AsNoTracking()
-                .Where(p => p.IsActive)
-                .Select(p => new
-                {
-                    p.Id,
-                    p.Sku,
-                    p.Name,
-                    p.IsActive,
-                    Stock = p.ProductVariants.Any(v => v.IsActive)
-                        ? p.ProductVariants
-                            .Where(v => v.IsActive)
-                            .Sum(v => (int?)v.Stock) ?? 0
-                        : p.Stock
-                })
-                .Where(p => p.Stock <= lowStockThreshold)
-                .OrderBy(p => p.Stock)
-                .ThenBy(p => p.Name)
-                .Take(10)
-                .Select(p => new LowStockProductDto
-                {
-                    Id = p.Id,
-                    Sku = p.Sku,
-                    Name = p.Name,
-                    Stock = p.Stock,
-                    IsActive = p.IsActive
-                })
-                .ToListAsync(ct);
+            var lowStockProducts = new List<LowStockProductDto>();
 
             var recentOrders = await _context.Orders
                 .AsNoTracking()
-                .Include(o => o.User)
                 .OrderByDescending(o => o.Created)
                 .Take(recentOrdersLimit)
                 .Select(o => new RecentOrderDto
                 {
                     Id = o.Id,
-                    CustomerName = (o.User.FirstName + " " + o.User.LastName).Trim(),
+                    CustomerName = o.User != null
+                        ? ((o.User.FirstName ?? string.Empty) + " " + (o.User.LastName ?? string.Empty)).Trim()
+                        : o.ReceiverName,
                     TotalAmount = o.Total,
                     Status = o.Status.ToString(),
                     Created = o.Created
@@ -168,10 +142,10 @@ namespace api.services.implementations.admin
 
             var customerOrderCounts = await _context.Orders
                 .AsNoTracking()
-                .GroupBy(o => o.UserId)
+                .GroupBy(o => o.UserId ?? ("phone:" + o.ReceiverPhone))
                 .Select(g => new
                 {
-                    UserId = g.Key,
+                    CustomerKey = g.Key,
                     Orders = g.Count()
                 })
                 .ToListAsync(ct);
@@ -187,9 +161,9 @@ namespace api.services.implementations.admin
                     item.Order.Status != OrderStatus.Refunded)
                 .GroupBy(item => new
                 {
-                    item.ProductId,
+                    ProductId = item.ProductId ?? string.Empty,
                     item.ProductName,
-                    item.Product.ImageUrl
+                    ImageUrl = item.Product != null ? item.Product.ImageUrl : null
                 })
                 .Select(group => new TopSellingProductDto
                 {
@@ -203,6 +177,47 @@ namespace api.services.implementations.admin
                 .ThenByDescending(product => product.Revenue)
                 .Take(10)
                 .ToListAsync(ct);
+
+            var quoteStatusRows = await _context.QuoteRequests
+                .AsNoTracking()
+                .GroupBy(q => q.Status)
+                .Select(g => new
+                {
+                    Status = g.Key,
+                    Count = g.Count()
+                })
+                .ToListAsync(ct);
+
+            var recentQuoteRequests = await _context.QuoteRequests
+                .AsNoTracking()
+                .OrderByDescending(q => q.CreatedAt)
+                .Take(recentOrdersLimit)
+                .Select(q => new AdminRecentQuoteDto
+                {
+                    Id = q.Id,
+                    QuoteCode = q.QuoteCode,
+                    CustomerName = q.CustomerName,
+                    Phone = q.Phone,
+                    OrganizationName = q.OrganizationName,
+                    ProductName = q.Product != null ? q.Product.Name : null,
+                    Quantity = q.Quantity,
+                    QuotedPrice = q.QuotedPrice,
+                    Status = q.Status.ToString(),
+                    CreatedAt = q.CreatedAt
+                })
+                .ToListAsync(ct);
+
+            var quotesByStatus = quoteStatusRows.ToDictionary(x => x.Status.ToString(), x => x.Count);
+            var totalQuotes = quoteStatusRows.Sum(x => x.Count);
+            var pendingQuotes = quotesByStatus.GetValueOrDefault(QuoteStatus.Pending.ToString());
+            var contactedQuotes = quotesByStatus.GetValueOrDefault(QuoteStatus.Contacted.ToString());
+            var quotedCount = quotesByStatus.GetValueOrDefault(QuoteStatus.Quoted.ToString());
+            var acceptedQuotes = quotesByStatus.GetValueOrDefault(QuoteStatus.Accepted.ToString());
+            var inProductionQuotes = quotesByStatus.GetValueOrDefault(QuoteStatus.InProduction.ToString());
+            var completedQuotes = quotesByStatus.GetValueOrDefault(QuoteStatus.Completed.ToString());
+            var quoteConversionRate = totalQuotes > 0
+                ? Math.Round((decimal)(acceptedQuotes + inProductionQuotes + completedQuotes) / totalQuotes * 100m, 1)
+                : 0m;
 
             var orderStatusAnalytics = BuildOrderStatusAnalytics(orderStatusRows, totalOrders);
 
@@ -234,7 +249,17 @@ namespace api.services.implementations.admin
                 WeeklyRevenueTrend = BuildWeeklyRevenueTrend(trendPayments, trendOrders, weeklyStart, 12),
                 MonthlyRevenueTrend = BuildMonthlyRevenueTrend(trendPayments, trendOrders, monthlyStart, 6),
                 OrderStatusAnalytics = orderStatusAnalytics,
-                TopSellingProducts = topSellingProducts
+                TopSellingProducts = topSellingProducts,
+                TotalQuotes = totalQuotes,
+                PendingQuotes = pendingQuotes,
+                ContactedQuotes = contactedQuotes,
+                QuotedCount = quotedCount,
+                AcceptedQuotes = acceptedQuotes,
+                InProductionQuotes = inProductionQuotes,
+                CompletedQuotes = completedQuotes,
+                QuoteConversionRate = quoteConversionRate,
+                QuotesByStatus = quotesByStatus,
+                RecentQuoteRequests = recentQuoteRequests
             };
         }
 

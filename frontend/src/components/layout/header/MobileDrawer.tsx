@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from "react";
 import { Link } from "react-router-dom";
 import type { UserDto } from "../../../@types/auth.type";
 import { ROUTES } from "../../../lib/routes";
-import { CartIcon, CloseIcon, HeartIcon, LogoutIcon, UserIcon } from "./HeaderIcons";
+import { CloseIcon, HeartIcon, LogoutIcon, QuoteIcon, UserIcon } from "./HeaderIcons";
 import type { HeaderNavLink } from "./headerLinks";
 
 type MobileDrawerProps = {
@@ -13,7 +13,6 @@ type MobileDrawerProps = {
   isAdmin: boolean;
   avatarUrl: string | null | undefined;
   resolvedAvatarUrl: string | null;
-  totalQty: number;
   adminToggleTarget: string;
   adminToggleLabel: string;
   mobileMenuRef: RefObject<HTMLDivElement | null>;
@@ -29,7 +28,6 @@ export default function MobileDrawer({
   isAdmin,
   avatarUrl,
   resolvedAvatarUrl,
-  totalQty,
   adminToggleTarget,
   adminToggleLabel,
   mobileMenuRef,
@@ -121,19 +119,12 @@ export default function MobileDrawer({
               Quick Actions
             </div>
 
-            <MobileDrawerLink to={ROUTES.WISHLIST} onClose={onClose} label="Wishlist">
+            <MobileDrawerLink to={ROUTES.WISHLIST} onClose={onClose} label="Yêu thích">
               <HeartIcon className="h-5 w-5" />
             </MobileDrawerLink>
 
-            <MobileDrawerLink to={ROUTES.CART} onClose={onClose} label="Giỏ hàng">
-              <div className="relative inline-flex h-5 w-5 items-center justify-center">
-                <CartIcon className="h-5 w-5" />
-                {totalQty > 0 && (
-                  <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
-                    {totalQty > 99 ? "99+" : totalQty}
-                  </span>
-                )}
-              </div>
+            <MobileDrawerLink to={ROUTES.QUOTES} onClose={onClose} label="Yêu cầu báo giá">
+              <QuoteIcon className="h-5 w-5" />
             </MobileDrawerLink>
 
             {isAuthenticated && (
@@ -146,21 +137,8 @@ export default function MobileDrawer({
                 <MobileDrawerLink to={ROUTES.PROFILE} onClose={onClose} label="Hồ sơ của tôi">
                   <UserIcon className="h-5 w-5" />
                 </MobileDrawerLink>
-                <MobileDrawerLink to={ROUTES.ORDERS} onClose={onClose} label="Đơn hàng của tôi">
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.7}
-                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    />
-                  </svg>
-                </MobileDrawerLink>
-                <MobileDrawerLink to={ROUTES.CANCELLATIONS} onClose={onClose} label="Đơn đã hủy">
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="9" strokeWidth={1.5} />
-                    <circle cx="12" cy="12" r="3" fill="currentColor" />
-                  </svg>
+                <MobileDrawerLink to={ROUTES.QUOTES} onClose={onClose} label="Yêu cầu báo giá của tôi">
+                  <QuoteIcon className="h-5 w-5" />
                 </MobileDrawerLink>
                 <MobileDrawerLink to={ROUTES.REVIEWS} onClose={onClose} label="Đánh giá của tôi">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

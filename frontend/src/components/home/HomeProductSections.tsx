@@ -5,35 +5,37 @@ import ProductCard from "../product/ProductCard";
 import ProductCardSkeleton from "../product/Productcardskeleton";
 import { useScrollReveal } from "../../hooks/useScrollReveal";
 import type { ProductQueryDto } from "../../@types/product.type";
+import { CUSTOM_CATEGORY_IDS } from "../../lib/catalog";
+import { ROUTES, routeTo } from "../../lib/routes";
+import customTileImage from "../../assets/images/products/áo cổ tròn/ts coll.png";
+import poloTileImage from "../../assets/images/products/áo có cổ/1.png";
+import tshirtTileImage from "../../assets/images/products/áo cổ tròn/ts01.png";
+import hoodieTileImage from "../../assets/images/products/áo hoodie/hd01.png";
 
 const categoryTiles = [
   {
-    title: "Quần áo",
-    label: "Áo thun, áo khoác, sơ mi",
-    href: "/shop?search=Áo",
-    image:
-      "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=900&auto=format&fit=crop",
+    title: "Áo Custom",
+    label: "37 mẫu thiết kế theo yêu cầu",
+    href: ROUTES.SHOP,
+    image: customTileImage,
   },
   {
-    title: "Phụ kiện",
-    label: "Balo, đồng hồ, túi xách",
-    href: "/shop?search=Balo",
-    image:
-      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=900&auto=format&fit=crop",
+    title: "Áo Có Cổ",
+    label: "Polo cá sấu custom — 15 mẫu",
+    href: routeTo.shopCategory(CUSTOM_CATEGORY_IDS.POLO),
+    image: poloTileImage,
   },
   {
-    title: "Sneaker",
-    label: "Giày nam, giày nữ",
-    href: "/shop?search=Sneaker",
-    image:
-      "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=900&auto=format&fit=crop",
+    title: "Áo Cổ Tròn",
+    label: "Thun cotton oversize — 12 mẫu",
+    href: routeTo.shopCategory(CUSTOM_CATEGORY_IDS.TSHIRT),
+    image: tshirtTileImage,
   },
   {
-    title: "Nữ tính",
-    label: "Váy đầm, túi xách, sơ mi",
-    href: "/shop?search=Váy",
-    image:
-      "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=900&auto=format&fit=crop",
+    title: "Áo Hoodie",
+    label: "Nỉ bông boxy — 10 mẫu",
+    href: routeTo.shopCategory(CUSTOM_CATEGORY_IDS.HOODIE),
+    image: hoodieTileImage,
   },
 ];
 
@@ -175,22 +177,22 @@ export default function HomeProductSections() {
       </section>
 
       <ProductRail
-        title="Áo khoác và áo thun"
-        href="/shop?search=Áo"
-        query={{ search: "Áo" }}
+        title="Áo Có Cổ Custom"
+        href={routeTo.shopCategory(CUSTOM_CATEGORY_IDS.POLO)}
+        query={{ categoryId: CUSTOM_CATEGORY_IDS.POLO }}
       />
 
       <ProductRail
-        title="Phụ kiện"
-        href="/shop?search=Balo"
-        query={{ search: "Balo" }}
+        title="Áo Cổ Tròn Custom"
+        href={routeTo.shopCategory(CUSTOM_CATEGORY_IDS.TSHIRT)}
+        query={{ categoryId: CUSTOM_CATEGORY_IDS.TSHIRT }}
         tone="soft"
       />
 
       <ProductRail
-        title="Sneaker để đi mỗi ngày"
-        href="/shop?search=Sneaker"
-        query={{ search: "Sneaker" }}
+        title="Áo Hoodie Custom"
+        href={routeTo.shopCategory(CUSTOM_CATEGORY_IDS.HOODIE)}
+        query={{ categoryId: CUSTOM_CATEGORY_IDS.HOODIE }}
       />
     </>
   );

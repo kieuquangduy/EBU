@@ -31,7 +31,6 @@ namespace api.repositories.interfaces
         // // INCLUDE RELATIONS
 
 
-        // Task<User?> GetWithCartAsync(string userId);
         // Task<User?> GetWithOrdersAsync(string userId);
         // Task<User?> GetWithAddressesAsync(string userId);
 

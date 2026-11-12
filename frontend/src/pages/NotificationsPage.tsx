@@ -40,7 +40,9 @@ export default function NotificationsPage() {
 
   const notifications = notificationsQuery.data?.items ?? [];
   const totalPages = Math.max(notificationsQuery.data?.totalPages ?? 1, 1);
-  const ordersLink = location.pathname.startsWith("/admin") ? "/admin/orders" : ROUTES.ORDERS;
+  const isAdminView = location.pathname.startsWith("/admin");
+  const actionLink = isAdminView ? "/admin/orders" : ROUTES.QUOTES;
+  const actionLabel = isAdminView ? "Xem đơn hàng" : "Yêu cầu báo giá của tôi";
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
@@ -48,7 +50,7 @@ export default function NotificationsPage() {
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.14em] text-red-500">HauShop</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-950">Thông báo</h1>
-          <p className="mt-2 text-sm text-slate-500">Theo dõi thanh toán, trạng thái đơn và hoàn hàng.</p>
+          <p className="mt-2 text-sm text-slate-500">Theo dõi yêu cầu báo giá, tin nhắn tư vấn và cập nhật từ HauShop.</p>
         </div>
         <button
           type="button"
@@ -112,14 +114,14 @@ export default function NotificationsPage() {
           <div className="px-6 py-16 text-center">
             <Icon icon="mdi:bell-off-outline" width={42} className="mx-auto text-slate-300" />
             <p className="mt-4 text-base font-semibold text-slate-900">Không có thông báo phù hợp</p>
-            <p className="mt-2 text-sm text-slate-500">Thử đổi bộ lọc hoặc quay lại sau khi đơn hàng được cập nhật.</p>
+            <p className="mt-2 text-sm text-slate-500">Thử đổi bộ lọc hoặc quay lại sau khi yêu cầu báo giá được cập nhật.</p>
           </div>
         )}
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-3 text-sm">
-        <Link to={ordersLink} className="font-medium text-slate-600 transition hover:text-red-500">
-          Xem đơn hàng
+        <Link to={actionLink} className="font-medium text-slate-600 transition hover:text-red-500">
+          {actionLabel}
         </Link>
         <div className="flex items-center gap-2">
           <button

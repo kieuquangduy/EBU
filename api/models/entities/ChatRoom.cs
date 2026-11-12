@@ -12,6 +12,10 @@ namespace api.models.entities
         public string Name { get; set; }
         public bool IsPrivate { get; set; }
         public ChatRoomType Type { get; set; }
+        public string? ProductId { get; set; }
+        public Product? Product { get; set; }
+        public string? QuoteRequestId { get; set; }
+        public QuoteRequest? QuoteRequest { get; set; }
         public DateTime Created { get; set; }
 
         // Navigation properties

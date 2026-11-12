@@ -8,6 +8,7 @@ export interface NotificationDto {
   message: string;
   link?: string | null;
   orderId?: string | null;
+  quoteRequestId?: string | null;
   isRead: boolean;
   readAt?: string | null;
   created: string;

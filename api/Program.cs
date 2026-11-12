@@ -16,7 +16,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using FluentValidation;
 using FluentValidation.AspNetCore;
-using api.validators.order;
+using api.validators.quote;
 using Microsoft.AspNetCore.Mvc;
 using CloudinaryDotNet;
 using api.services.implementations.cloud;
@@ -27,14 +27,8 @@ using api.services.interfaces;
 using api.services.implementations.seed;
 using api.services.implementations.product;
 using api.services.interfaces.product;
-using api.services.interfaces.cart;
-using api.services.implementations.cart;
 using api.middlewares;
 using api.middleware;
-using api.services.interfaces.order;
-using api.services.implementations.order;
-using api.services.interfaces.payment;
-using api.services.implementations.payment;
 using api.services.interfaces.wishlist;
 using api.services.implementations.wishlist;
 using api.services.interfaces.review;
@@ -48,6 +42,10 @@ using api.services.interfaces.category;
 using api.services.implementations.category;
 using api.services.implementations.notification;
 using api.services.interfaces.notification;
+using api.services.implementations.shop;
+using api.services.interfaces.shop;
+using api.services.implementations.quote;
+using api.services.interfaces.quote;
 using StackExchange.Redis;
 
 
@@ -218,7 +216,9 @@ builder.Services.AddAuthentication(options =>
             var allowsAnonymous = endpoint?.Metadata.GetMetadata<IAllowAnonymous>() != null;
             var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
 
-            if (allowsAnonymous && string.IsNullOrEmpty(authHeader))
+            if (allowsAnonymous &&
+                string.IsNullOrEmpty(authHeader) &&
+                !context.Request.Path.StartsWithSegments("/api/quote-requests", StringComparison.OrdinalIgnoreCase))
                 return Task.CompletedTask;
 
             var token = context.Request.Cookies["accessToken"];
@@ -348,7 +348,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IGoogleAuthService, GoogleAuthService>();
-builder.Services.AddValidatorsFromAssemblyContaining<CreateOrderDtoValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateQuoteRequestDtoValidator>();
 builder.Services.AddScoped<CloudinaryService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -361,16 +361,7 @@ if (builder.Configuration.GetValue<bool>("Warmup:ProductSearch:Enabled"))
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<SeedService>();
-builder.Services.AddScoped<ICartService, CartService>();
-builder.Services.AddScoped<ICartCacheService, CartCacheService>();
-builder.Services.AddScoped<ICartRepository, CartRepository>();
 builder.Services.AddScoped<IProductVariantRepository, ProductVariantRepository>();
-builder.Services.Configure<VnPayOptions>(
-    builder.Configuration.GetSection(VnPayOptions.SectionName));
-
-builder.Services.AddScoped<IOrderRepository, OrderRepository>();
-builder.Services.AddScoped<IOrderService, OrderService>();
-builder.Services.AddScoped<IVnPayService, VnPayService>();
 builder.Services.AddScoped<IWishlistRepository, WishlistRepository>();
 builder.Services.AddScoped<IWishlistService, WishlistService>();
 builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
@@ -383,6 +374,11 @@ builder.Services.AddHttpClient<IAiChatService, AiChatService>(client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IShopContactService, ShopContactService>();
+builder.Services.AddScoped<ILogoUploadService, LocalLogoUploadService>();
+builder.Services.AddScoped<IRfqWebhookService, RfqWebhookService>();
+builder.Services.AddScoped<IQuoteRequestService, QuoteRequestService>();
+builder.Services.AddHttpClient();
 
 
 // ===========================

@@ -5,32 +5,29 @@ import { useWishlistIds } from "../../hooks/useWishlist";
 import ProductCard from "../product/ProductCard";
 import ProductCardSkeleton from "../product/Productcardskeleton";
 import { useScrollReveal } from "../../hooks/useScrollReveal";
+import { CUSTOM_CATEGORY_IDS } from "../../lib/catalog";
+import { ROUTES, routeTo } from "../../lib/routes";
 
 const TABS = [
   {
     key: "all",
     label: "Tất cả",
-    search: undefined,
+    categoryId: undefined,
   },
   {
-    key: "tee",
-    label: "Áo thun",
-    search: "Áo Thun",
+    key: "polo",
+    label: "Áo Có Cổ",
+    categoryId: CUSTOM_CATEGORY_IDS.POLO,
   },
   {
-    key: "jacket",
-    label: "Áo khoác",
-    search: "Áo Khoác",
+    key: "tshirt",
+    label: "Áo Cổ Tròn",
+    categoryId: CUSTOM_CATEGORY_IDS.TSHIRT,
   },
   {
-    key: "sneaker",
-    label: "Sneaker",
-    search: "Sneaker",
-  },
-  {
-    key: "accessory",
-    label: "Phụ kiện",
-    search: "Balo",
+    key: "hoodie",
+    label: "Áo Hoodie",
+    categoryId: CUSTOM_CATEGORY_IDS.HOODIE,
   },
 ] as const;
 
@@ -48,14 +45,14 @@ export default function BestSellers() {
     sortOrder: "desc",
     pageSize: 8,
     includeTotal: false,
-    search: activeTabDef.search,
+    categoryId: activeTabDef.categoryId,
   }, {
     enabled: visible,
   });
 
-  const allResultsPath = activeTabDef.search
-    ? `/shop?search=${encodeURIComponent(activeTabDef.search)}`
-    : "/shop";
+  const allResultsPath = activeTabDef.categoryId
+    ? routeTo.shopCategory(activeTabDef.categoryId)
+    : ROUTES.SHOP;
 
   return (
     <section className="bg-white px-4 py-20 sm:px-6 lg:px-10">

@@ -12,8 +12,6 @@ namespace api.data
 
         public DbSet<Address> Addresses { get; set; }
         public DbSet<Brand> Brands { get; set; }
-        public DbSet<Cart> Carts { get; set; }
-        public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Category> Categories { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
         public DbSet<ChatRoom> ChatRooms { get; set; }
@@ -35,6 +33,8 @@ namespace api.data
         public DbSet<PasswordResetOtp> PasswordResetOtps { get; set; }
         public DbSet<ProductVariant> ProductVariants { get; set; }
         public DbSet<AdminSetting> AdminSettings { get; set; }
+        public DbSet<ShopContact> ShopContacts { get; set; }
+        public DbSet<QuoteRequest> QuoteRequests { get; set; }
         public DbSet<Notification> Notifications { get; set; }
 
 
@@ -100,56 +100,6 @@ namespace api.data
                 entity.HasIndex(e => new { e.MerchantId, e.IsActive });
             });
 
-            // ============ CART ============
-            modelBuilder.Entity<Cart>(entity =>
-            {
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasMaxLength(50);
-                entity.Property(e => e.UserId).IsRequired().HasMaxLength(50);
-                entity.Property(e => e.Created).HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                entity.HasOne(e => e.User)
-                    .WithOne(u => u.Cart)
-                    .HasForeignKey<Cart>(e => e.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                entity.HasIndex(e => e.UserId).IsUnique();
-            });
-
-            // ============ CART ITEM ============
-            modelBuilder.Entity<CartItem>(entity =>
-            {
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasMaxLength(50);
-                entity.Property(e => e.CartId).IsRequired().HasMaxLength(50);
-                entity.Property(e => e.ProductId).IsRequired().HasMaxLength(50);
-                entity.Property(e => e.ProductVariantId).HasMaxLength(50);
-                entity.Property(e => e.Quantity).IsRequired();
-                entity.Property(e => e.Price).HasPrecision(18, 2).IsRequired();
-                entity.Property(e => e.Created).HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                entity.HasOne(e => e.Cart)
-                    .WithMany(c => c.Items)
-                    .HasForeignKey(e => e.CartId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                entity.HasOne(e => e.Product)
-                    .WithMany(p => p.CartItems)
-                    .HasForeignKey(e => e.ProductId)
-                    .OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne(e => e.ProductVariant)
-                    .WithMany(pv => pv.CartItems)
-                    .HasForeignKey(e => e.ProductVariantId)
-                    .OnDelete(DeleteBehavior.SetNull);
-
-                entity.HasIndex(e => new { e.CartId, e.ProductId });
-                entity.HasIndex(e => new { e.CartId, e.ProductVariantId });
-                entity.HasIndex(e => e.ProductId);
-                entity.HasIndex(e => e.ProductVariantId);
-
-                entity.ToTable(t => t.HasCheckConstraint("CK_CartItem_Quantity", "`Quantity` > 0"));
-            });
-
             // ============ CATEGORY ============
             modelBuilder.Entity<Category>(entity =>
             {
@@ -179,6 +129,8 @@ namespace api.data
                 entity.Property(e => e.SenderId).IsRequired().HasMaxLength(50);
                 entity.Property(e => e.Message).IsRequired().HasMaxLength(5000);
                 entity.Property(e => e.MessageType).IsRequired().HasDefaultValue(ChatMessageType.Text);
+                entity.Property(e => e.AttachmentsJson).HasColumnType("json");
+                entity.Property(e => e.MetadataJson).HasColumnType("json");
                 entity.Property(e => e.IsRead).HasDefaultValue(false);
                 entity.Property(e => e.ReadAt).HasColumnType("datetime");
                 entity.Property(e => e.Created).HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -210,11 +162,25 @@ namespace api.data
                 entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
                 entity.Property(e => e.IsPrivate).HasDefaultValue(true);
                 entity.Property(e => e.Type).IsRequired().HasDefaultValue(ChatRoomType.Support);
+                entity.Property(e => e.ProductId).HasMaxLength(50);
+                entity.Property(e => e.QuoteRequestId).HasMaxLength(50);
                 entity.Property(e => e.Created).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.HasOne(e => e.Product)
+                    .WithMany()
+                    .HasForeignKey(e => e.ProductId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(e => e.QuoteRequest)
+                    .WithMany()
+                    .HasForeignKey(e => e.QuoteRequestId)
+                    .OnDelete(DeleteBehavior.SetNull);
 
                 entity.HasIndex(e => e.Type);
                 entity.HasIndex(e => e.Created);
                 entity.HasIndex(e => new { e.Type, e.IsPrivate });
+                entity.HasIndex(e => e.ProductId);
+                entity.HasIndex(e => e.QuoteRequestId);
             });
 
             // ============ MERCHANT ============
@@ -241,7 +207,10 @@ namespace api.data
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).HasMaxLength(50);
-                entity.Property(e => e.UserId).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.OrderCode).HasMaxLength(32);
+                entity.Property(e => e.UserId).HasMaxLength(50);
+                entity.Property(e => e.Source).IsRequired().HasDefaultValue(OrderSource.Storefront).HasConversion<int>();
+                entity.Property(e => e.QuoteRequestId).HasMaxLength(50);
                 entity.Property(e => e.Total).HasPrecision(18, 2).IsRequired();
                 entity.Property(e => e.Status).IsRequired().HasDefaultValue(OrderStatus.Pending);
                 entity.Property(e => e.ShippingAddressId).HasMaxLength(50);
@@ -253,11 +222,17 @@ namespace api.data
                 entity.Property(e => e.ReceiverName).IsRequired().HasMaxLength(200);
                 entity.Property(e => e.ReceiverPhone).IsRequired().HasMaxLength(20);
                 entity.Property(e => e.AddressLine).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.Note).HasMaxLength(1000);
 
                 entity.HasOne(e => e.User)
                     .WithMany(u => u.Orders)
                     .HasForeignKey(e => e.UserId)
-                    .OnDelete(DeleteBehavior.Restrict);
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(e => e.QuoteRequest)
+                    .WithMany()
+                    .HasForeignKey(e => e.QuoteRequestId)
+                    .OnDelete(DeleteBehavior.SetNull);
 
                 entity.HasOne(e => e.ShippingAddress)
                     .WithMany()
@@ -265,6 +240,9 @@ namespace api.data
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.OrderCode);
+                entity.HasIndex(e => e.QuoteRequestId);
+                entity.HasIndex(e => e.Source);
                 entity.HasIndex(e => e.Created);
                 entity.HasIndex(e => new { e.UserId, e.Status });
                 entity.HasIndex(e => new { e.UserId, e.Created });
@@ -314,6 +292,7 @@ namespace api.data
                 entity.Property(e => e.Message).IsRequired().HasMaxLength(1000);
                 entity.Property(e => e.Link).HasMaxLength(500);
                 entity.Property(e => e.OrderId).HasMaxLength(50);
+                entity.Property(e => e.QuoteRequestId).HasMaxLength(50);
                 entity.Property(e => e.MetadataJson).HasColumnType("json");
                 entity.Property(e => e.IsRead).HasDefaultValue(false);
                 entity.Property(e => e.ReadAt).HasColumnType("datetime");
@@ -330,6 +309,8 @@ namespace api.data
                     .HasDatabaseName("IX_Notifications_User_Type_Created");
                 entity.HasIndex(e => e.OrderId)
                     .HasDatabaseName("IX_Notifications_OrderId");
+                entity.HasIndex(e => e.QuoteRequestId)
+                    .HasDatabaseName("IX_Notifications_QuoteRequestId");
                 entity.HasIndex(e => e.Created)
                     .HasDatabaseName("IX_Notifications_Created");
             });
@@ -340,7 +321,7 @@ namespace api.data
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).HasMaxLength(50);
                 entity.Property(e => e.OrderId).IsRequired().HasMaxLength(50);
-                entity.Property(e => e.ProductId).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.ProductId).HasMaxLength(50);
                 entity.Property(e => e.ProductVariantId).HasMaxLength(50);
                 entity.Property(e => e.ProductName).IsRequired().HasMaxLength(300);
                 entity.Property(e => e.VariantSku).HasMaxLength(100);
@@ -359,7 +340,7 @@ namespace api.data
                 entity.HasOne(e => e.Product)
                     .WithMany(p => p.OrderItems)
                     .HasForeignKey(e => e.ProductId)
-                    .OnDelete(DeleteBehavior.Restrict);
+                    .OnDelete(DeleteBehavior.SetNull);
 
                 entity.HasIndex(e => e.OrderId);
                 entity.HasIndex(e => e.ProductId);
@@ -419,6 +400,15 @@ namespace api.data
                 entity.Property(e => e.ImageKey).HasMaxLength(200);
                 entity.Property(e => e.Description).HasMaxLength(5000);
                 entity.Property(e => e.Price).HasPrecision(18, 2).IsRequired();
+                entity.Property(e => e.BasePrice).HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(e => e.OriginalPrice).HasPrecision(18, 2);
+                entity.Property(e => e.DiscountPercent);
+                entity.Property(e => e.PriceNote)
+                    .HasMaxLength(500)
+                    .HasDefaultValue("Giá sản phẩm có thể thay đổi theo chất liệu, số lượng và kỹ thuật in.");
+                entity.Property(e => e.AvailableMaterials).HasColumnType("json");
+                entity.Property(e => e.AvailablePrintTechniques).HasColumnType("json");
+                entity.Property(e => e.MinOrderQuantity).HasDefaultValue(10);
                 entity.Property(e => e.Taxable).HasDefaultValue(true);
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.BrandId).HasMaxLength(50);
@@ -449,6 +439,8 @@ namespace api.data
                 entity.ToTable(t =>
                 {
                     t.HasCheckConstraint("CK_Product_Price", "`Price` >= 0");
+                    t.HasCheckConstraint("CK_Product_BasePrice", "`BasePrice` >= 0");
+                    t.HasCheckConstraint("CK_Product_MinOrderQuantity", "`MinOrderQuantity` >= 1");
                     t.HasCheckConstraint("CK_Product_Stock", "`Stock` >= 0");
                     t.HasCheckConstraint("CK_Product_AverageRating", "`AverageRating` >= 0 AND `AverageRating` <= 5");
                 });
@@ -557,6 +549,8 @@ namespace api.data
                 entity.Property(e => e.CustomerId).IsRequired().HasMaxLength(50);
                 entity.Property(e => e.AssignedToId).HasMaxLength(50);
                 entity.Property(e => e.ChatRoomId).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.ProductId).HasMaxLength(50);
+                entity.Property(e => e.QuoteRequestId).HasMaxLength(50);
                 entity.Property(e => e.Subject).IsRequired().HasMaxLength(500);
                 entity.Property(e => e.Status).IsRequired().HasDefaultValue(SupportTicketStatus.Open);
                 entity.Property(e => e.Priority).IsRequired().HasDefaultValue(SupportTicketPriority.Low).HasConversion<int>();
@@ -578,7 +572,19 @@ namespace api.data
                     .HasForeignKey<SupportTicket>(st => st.ChatRoomId)
                     .OnDelete(DeleteBehavior.Cascade);
 
+                entity.HasOne(st => st.Product)
+                    .WithMany()
+                    .HasForeignKey(st => st.ProductId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(st => st.QuoteRequest)
+                    .WithMany()
+                    .HasForeignKey(st => st.QuoteRequestId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
                 entity.HasIndex(e => e.CustomerId);
+                entity.HasIndex(e => e.ProductId);
+                entity.HasIndex(e => e.QuoteRequestId);
                 entity.HasIndex(e => e.AssignedToId);
                 entity.HasIndex(e => e.Priority);
                 entity.HasIndex(e => e.Created);
@@ -670,6 +676,78 @@ namespace api.data
                 entity.Property(e => e.Created).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 entity.Property(e => e.Updated).HasColumnType("datetime");
 
+            });
+
+            // ============ SHOP CONTACT ============
+            modelBuilder.Entity<ShopContact>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasMaxLength(50);
+                entity.Property(e => e.ZaloPhone).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.ZaloOAId).HasMaxLength(100);
+                entity.Property(e => e.Hotline).IsRequired().HasMaxLength(30);
+                entity.Property(e => e.Email).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.MessengerLink).HasMaxLength(500);
+                entity.Property(e => e.WorkingHours).HasMaxLength(200);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
+            });
+
+            // ============ QUOTE REQUEST ============
+            modelBuilder.Entity<QuoteRequest>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).HasMaxLength(50);
+                entity.Property(e => e.QuoteCode).IsRequired().HasMaxLength(32);
+                entity.Property(e => e.ProductId).HasMaxLength(50);
+                entity.Property(e => e.UserId).HasMaxLength(50);
+                entity.Property(e => e.CustomerName).IsRequired().HasMaxLength(150);
+                entity.Property(e => e.Phone).IsRequired().HasMaxLength(20);
+                entity.Property(e => e.Email).HasMaxLength(200);
+                entity.Property(e => e.OrganizationName).HasMaxLength(200);
+                entity.Property(e => e.Quantity).IsRequired();
+                entity.Property(e => e.Material).HasMaxLength(100);
+                entity.Property(e => e.PrintTechnique).IsRequired().HasConversion<int>();
+                entity.Property(e => e.SizeBreakdownJson).HasColumnType("json");
+                entity.Property(e => e.ColorSelection).HasMaxLength(100);
+                entity.Property(e => e.LogoFileUrlsJson).HasColumnType("json");
+                entity.Property(e => e.Note).HasMaxLength(2000);
+                entity.Property(e => e.ExpectedDeliveryDate).HasColumnType("datetime");
+                entity.Property(e => e.Status).IsRequired().HasConversion<int>().HasDefaultValue(QuoteStatus.Pending);
+                entity.Property(e => e.QuotedPrice).HasPrecision(18, 2);
+                entity.Property(e => e.QuotedNote).HasMaxLength(1000);
+                entity.Property(e => e.InternalNote).HasMaxLength(1000);
+                entity.Property(e => e.AssignedAdminId).HasMaxLength(50);
+                entity.Property(e => e.QuotedAt).HasColumnType("datetime");
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
+
+                entity.HasOne(e => e.Product)
+                    .WithMany(p => p.QuoteRequests)
+                    .HasForeignKey(e => e.ProductId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.QuoteRequests)
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(e => e.AssignedAdmin)
+                    .WithMany()
+                    .HasForeignKey(e => e.AssignedAdminId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(e => e.QuoteCode).IsUnique().HasDatabaseName("UX_QuoteRequests_QuoteCode");
+                entity.HasIndex(e => new { e.Status, e.CreatedAt }).HasDatabaseName("IX_QuoteRequests_Status_CreatedAt");
+                entity.HasIndex(e => new { e.UserId, e.CreatedAt }).HasDatabaseName("IX_QuoteRequests_UserId_CreatedAt");
+                entity.HasIndex(e => e.ProductId).HasDatabaseName("IX_QuoteRequests_ProductId");
+                entity.HasIndex(e => new { e.AssignedAdminId, e.Status }).HasDatabaseName("IX_QuoteRequests_AssignedAdminId_Status");
+
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint("CK_QuoteRequest_Quantity", "`Quantity` > 0");
+                    t.HasCheckConstraint("CK_QuoteRequest_QuotedPrice", "`QuotedPrice` IS NULL OR `QuotedPrice` > 0");
+                });
             });
 
             // ============ WISHLIST ============

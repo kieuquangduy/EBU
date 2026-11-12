@@ -5,6 +5,7 @@ using api.repositories.interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Globalization;
+using System.Linq.Expressions;
 using System.Text;
 
 namespace api.repositories.implementations
@@ -17,6 +18,43 @@ namespace api.repositories.implementations
 
         public ProductRepository(ApplicationDbContext context) : base(context) { }
 
+        private static readonly Expression<Func<Product, ProductSummaryDto>> SummarySelector = p => new ProductSummaryDto
+        {
+            Id = p.Id,
+            Sku = p.Sku,
+            Name = p.Name,
+            Slug = p.Slug,
+            ImageUrl = p.ImageUrl,
+            Price = p.Price,
+            BasePrice = p.BasePrice > 0 ? p.BasePrice : p.Price,
+            OriginalPrice = p.OriginalPrice,
+            DiscountPercent = p.DiscountPercent,
+            MinOrderQuantity = p.MinOrderQuantity > 0 ? p.MinOrderQuantity : 10,
+            IsActive = p.IsActive,
+            BrandId = p.BrandId,
+            BrandName = p.Brand != null ? p.Brand.Name : null,
+            MinVariantPrice = p.ProductVariants.Where(v => v.IsActive).Min(v => (decimal?)v.Price) ?? p.Price,
+            TotalStock = p.ProductVariants.Where(v => v.IsActive).Sum(v => v.Stock),
+            DefaultVariantId = p.ProductVariants
+                .Where(v => v.IsActive && v.Stock > 0)
+                .OrderBy(v => v.CreateAt)
+                .Select(v => v.Id)
+                .FirstOrDefault(),
+            Stock = p.Stock,
+            AverageRating = p.AverageRating,
+            ReviewCount = p.ReviewCount,
+            Categories = p.ProductCategories
+                .Where(pc => pc.Category != null)
+                .Select(pc => new CategorySummaryDto
+                {
+                    Id = pc.CategoryId,
+                    Name = pc.Category.Name,
+                    Slug = pc.Category.Slug,
+                })
+                .ToList(),
+            Created = p.Created,
+        };
+
         public async Task<List<ProductSummaryDto>> GetLatestActiveSummariesAsync(
             int pageSize,
             CancellationToken ct = default)
@@ -28,38 +66,7 @@ namespace api.repositories.implementations
                 .Where(p => p.IsActive)
                 .OrderByDescending(p => p.Created)
                 .Take(take)
-                .Select(p => new ProductSummaryDto
-                {
-                    Id = p.Id,
-                    Sku = p.Sku,
-                    Name = p.Name,
-                    Slug = p.Slug,
-                    ImageUrl = p.ImageUrl,
-                    Price = p.Price,
-                    IsActive = p.IsActive,
-                    BrandId = p.BrandId,
-                    BrandName = p.Brand != null ? p.Brand.Name : null,
-                    MinVariantPrice = p.ProductVariants.Where(v => v.IsActive).Min(v => (decimal?)v.Price) ?? p.Price,
-                    TotalStock = p.ProductVariants.Where(v => v.IsActive).Sum(v => v.Stock),
-                    DefaultVariantId = p.ProductVariants
-                        .Where(v => v.IsActive && v.Stock > 0)
-                        .OrderBy(v => v.CreateAt)
-                        .Select(v => v.Id)
-                        .FirstOrDefault(),
-                    Stock = p.Stock,
-                    AverageRating = p.AverageRating,
-                    ReviewCount = p.ReviewCount,
-                    Categories = p.ProductCategories
-                        .Where(pc => pc.Category != null)
-                        .Select(pc => new CategorySummaryDto
-                        {
-                            Id = pc.CategoryId,
-                            Name = pc.Category.Name,
-                            Slug = pc.Category.Slug,
-                        })
-                        .ToList(),
-                    Created = p.Created,
-                })
+                .Select(SummarySelector)
                 .ToListAsync(ct);
 
             return items;
@@ -150,38 +157,7 @@ namespace api.repositories.implementations
             var items = await query
                 .Skip((page - 1) * pageSize)
                 .Take(take)
-                .Select(p => new ProductSummaryDto
-                {
-                    Id = p.Id,
-                    Sku = p.Sku,
-                    Name = p.Name,
-                    Slug = p.Slug,
-                    ImageUrl = p.ImageUrl,
-                    Price = p.Price,
-                    IsActive = p.IsActive,
-                    BrandId = p.BrandId,
-                    BrandName = p.Brand != null ? p.Brand.Name : null,
-                    MinVariantPrice = p.ProductVariants.Where(v => v.IsActive).Min(v => (decimal?)v.Price) ?? p.Price,
-                    TotalStock = p.ProductVariants.Where(v => v.IsActive).Sum(v => v.Stock),
-                    DefaultVariantId = p.ProductVariants
-                        .Where(v => v.IsActive && v.Stock > 0)
-                        .OrderBy(v => v.CreateAt)
-                        .Select(v => v.Id)
-                        .FirstOrDefault(),
-                    Stock = p.Stock,
-                    AverageRating = p.AverageRating,
-                    ReviewCount = p.ReviewCount,
-                    Categories = p.ProductCategories
-                        .Where(pc => pc.Category != null)
-                        .Select(pc => new CategorySummaryDto
-                        {
-                            Id = pc.CategoryId,
-                            Name = pc.Category.Name,
-                            Slug = pc.Category.Slug,
-                        })
-                        .ToList(),
-                    Created = p.Created,
-                })
+                .Select(SummarySelector)
                 .ToListAsync(ct);
 
             var hasNextPage = !q.IncludeTotal && items.Count > pageSize;

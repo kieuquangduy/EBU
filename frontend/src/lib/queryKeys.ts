@@ -12,12 +12,21 @@ export const queryKeys = {
     orders: (params: { search?: string; status?: string; page: number; pageSize: number }) =>
       ["admin", "orders", params] as const,
     order: (orderId: string) => ["admin", "order", orderId] as const,
+    quotes: (params: {
+      status?: string;
+      search?: string;
+      fromDate?: string;
+      toDate?: string;
+      assignedAdminId?: string;
+      page: number;
+      pageSize: number;
+    }) => ["admin", "quotes", params] as const,
+    quote: (quoteId: string) => ["admin", "quote", quoteId] as const,
     products: (params: { search?: string; isActive?: boolean; page: number; pageSize: number }) =>
       ["admin", "products", params] as const,
     product: (productId: string) => ["admin", "product", productId] as const,
-    inventory: (lowStockThreshold: number) =>
-      ["admin", "inventory", lowStockThreshold] as const,
     settings: () => ["admin", "settings"] as const,
+    shopContact: () => ["admin", "shop-contact"] as const,
   },
   products: {
     all: ["products"] as const,
@@ -32,14 +41,20 @@ export const queryKeys = {
     all: ["categories", "all"] as const,
     active: ["categories", "active"] as const,
   },
-  cart: {
-    me: ["cart", "me"] as const,
+  shopContact: {
+    public: ["shop-contact", "public"] as const,
   },
-  orders: {
-    mineRoot: ["orders", "mine"] as const,
-    mine: (page: number, pageSize: number, statuses?: readonly string[]) =>
-      ["orders", "mine", page, pageSize, statuses?.join(",") ?? "all"] as const,
-    detail: (orderId: string) => ["orders", "detail", orderId] as const,
+  quotes: {
+    mineRoot: ["quotes", "mine"] as const,
+    mine: (filters: {
+      page: number;
+      pageSize: number;
+      status?: string;
+      search?: string;
+      fromDate?: string;
+      toDate?: string;
+    }) => ["quotes", "mine", filters] as const,
+    detail: (quoteId: string) => ["quotes", "detail", quoteId] as const,
   },
   notifications: {
     all: ["notifications"] as const,

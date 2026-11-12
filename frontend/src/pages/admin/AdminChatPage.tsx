@@ -6,6 +6,7 @@ import type { ChatMessageDto, ChatRoomDto, MessagesReadEventDto } from "../../@t
 import { useAuth } from "../../hooks/useAuth";
 import { useChatConnection } from "../../hooks/useChatConnection";
 import { chatService } from "../../services/chatService";
+import { formatPrice } from "../../utils/formatPrice";
 import { getInitials } from "./adminShared";
 
 type RoomFilter = "all" | "unread" | "priority";
@@ -20,12 +21,12 @@ const AVATAR_GRADIENTS = [
 ];
 
 const QUICK_REPLIES = [
-  "Xin chào! HauShop có thể hỗ trợ gì cho bạn hôm nay ạ? 👋",
-  "Dạ bạn vui lòng cho shop xin Mã đơn hàng hoặc Số điện thoại đặt hàng để kiểm tra nhé ạ.",
-  "Dạ sản phẩm này hiện bên mình vẫn còn đủ màu và size, bạn đặt hàng ngay trên web được nhé!",
-  "Shop đã tiếp nhận thông tin và đang kiểm tra bộ phận kho/vận chuyển cho mình rồi ạ.",
-  "Chính sách đổi trả của HauShop hỗ trợ trong vòng 7 ngày kể từ khi nhận hàng ạ.",
-  "Cảm ơn bạn đã tin tưởng và mua sắm tại HauShop ❤️ Chúc bạn một ngày tốt lành!",
+  "Xin chào! HauShop có thể tư vấn mẫu áo, chất liệu & báo giá theo số lượng cho bạn ạ 👋",
+  "Dạ bạn gửi giúp shop số lượng dự kiến, chất liệu vải và file logo để mình báo giá tận xưởng nhé!",
+  "Dạ bạn có thể bấm nút 'Nhận báo giá' để gửi file logo và bảng chia size trực tiếp trên web ạ.",
+  "Shop hỗ trợ thiết kế mockup 2D miễn phí trước khi chốt đơn sản xuất ạ.",
+  "Bên mình nhận in lụa, in DTF, chuyển nhiệt và thêu vi tính theo từng mẫu áo và số lượng ạ.",
+  "Cảm ơn bạn đã liên hệ HauShop ❤️ Nếu cần chốt nhanh bạn nhắn qua Zalo giúp shop nhé!",
 ];
 
 const COMMON_EMOJIS = [
@@ -911,6 +912,20 @@ export default function AdminChatPage() {
                 <span className="mt-2 rounded-full bg-white/80 px-3 py-1 text-[11px] text-slate-500 shadow-sm ring-1 ring-slate-200/70">
                   Khách hàng tại HauShop • Kênh hỗ trợ trực tuyến
                 </span>
+                {(activeRoom.productName || activeRoom.quoteCode) ? (
+                  <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+                    {activeRoom.productName ? (
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-200">
+                        Sản phẩm: {activeRoom.productName}
+                      </span>
+                    ) : null}
+                    {activeRoom.quoteCode ? (
+                      <span className="rounded-full bg-indigo-50 px-3 py-1 font-mono text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                        RFQ: {activeRoom.quoteCode}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               {messagesLoading ? (
@@ -1008,6 +1023,26 @@ export default function AdminChatPage() {
                               title={new Date(message.created).toLocaleString("vi-VN")}
                             >
                               <p className="whitespace-pre-wrap break-words">{message.message}</p>
+                              {message.productCard ? (
+                                <div className="mt-2 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-2 text-left text-slate-900 shadow-sm">
+                                  {message.productCard.imageUrl ? (
+                                    <img
+                                      src={message.productCard.imageUrl}
+                                      alt={message.productCard.name}
+                                      className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                                    />
+                                  ) : null}
+                                  <div className="min-w-0">
+                                    <p className="truncate text-xs font-semibold text-slate-900">
+                                      {message.productCard.name}
+                                    </p>
+                                    <p className="text-[11px] font-bold text-blue-700">
+                                      Từ {formatPrice(message.productCard.basePrice)} · Tối thiểu{" "}
+                                      {message.productCard.minOrderQuantity} áo
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : null}
 
                               {isLastInGroup ? (
                                 <span

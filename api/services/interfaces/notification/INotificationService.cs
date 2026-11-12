@@ -28,5 +28,12 @@ namespace api.services.interfaces.notification
             OrderStatus previousStatus,
             OrderStatus nextStatus,
             CancellationToken ct = default);
+
+        Task NotifyQuoteCreatedAsync(string quoteRequestId, CancellationToken ct = default);
+        Task NotifyQuoteStatusChangedAsync(
+            string quoteRequestId,
+            QuoteStatus previousStatus,
+            QuoteStatus nextStatus,
+            CancellationToken ct = default);
     }
 }

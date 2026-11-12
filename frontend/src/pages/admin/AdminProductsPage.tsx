@@ -29,6 +29,13 @@ type ProductFormState = {
   slug: string;
   description: string;
   price: string;
+  basePrice: string;
+  originalPrice: string;
+  discountPercent: string;
+  priceNote: string;
+  minOrderQuantity: string;
+  availableMaterials: string;
+  availablePrintTechniques: string;
   stock: string;
   taxable: boolean;
   isActive: boolean;
@@ -46,6 +53,13 @@ const emptyForm: ProductFormState = {
   slug: "",
   description: "",
   price: "",
+  basePrice: "",
+  originalPrice: "",
+  discountPercent: "",
+  priceNote: "",
+  minOrderQuantity: "10",
+  availableMaterials: "Cotton 100%, Cá sấu 65/35",
+  availablePrintTechniques: "In lụa, In DTF, Thêu vi tính",
   stock: "0",
   taxable: false,
   isActive: true,
@@ -56,6 +70,13 @@ const emptyForm: ProductFormState = {
   reviewCount: "0",
   categoryIds: [],
 };
+
+function parseCsvList(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 const PAGE_SIZE = 12;
 
@@ -200,6 +221,13 @@ export default function AdminProductsPage() {
       slug: product.slug ?? "",
       description: product.description ?? "",
       price: String(product.price ?? 0),
+      basePrice: product.basePrice != null ? String(product.basePrice) : String(product.price ?? 0),
+      originalPrice: product.originalPrice != null ? String(product.originalPrice) : "",
+      discountPercent: product.discountPercent != null ? String(product.discountPercent) : "",
+      priceNote: product.priceNote ?? "",
+      minOrderQuantity: String(product.minOrderQuantity ?? 1),
+      availableMaterials: (product.availableMaterials ?? []).join(", "),
+      availablePrintTechniques: (product.availablePrintTechniques ?? []).join(", "),
       stock: String(product.stock ?? 0),
       taxable: !!product.taxable,
       isActive: !!product.isActive,
@@ -246,6 +274,16 @@ export default function AdminProductsPage() {
 
     setFormError(null);
 
+    const rfqPayload = {
+      basePrice: form.basePrice.trim() ? Number(form.basePrice) : Number(form.price),
+      originalPrice: form.originalPrice.trim() ? Number(form.originalPrice) : null,
+      discountPercent: form.discountPercent.trim() ? Number(form.discountPercent) : null,
+      priceNote: form.priceNote.trim() || null,
+      minOrderQuantity: Math.max(1, Number(form.minOrderQuantity) || 1),
+      availableMaterials: parseCsvList(form.availableMaterials),
+      availablePrintTechniques: parseCsvList(form.availablePrintTechniques),
+    };
+
     if (formMode === "create") {
       await createMutation.mutateAsync({
         sku: form.sku.trim(),
@@ -253,7 +291,7 @@ export default function AdminProductsPage() {
         slug: form.slug.trim() || undefined,
         description: form.description.trim(),
         price: Number(form.price),
-        stock: Number(form.stock),
+        stock: Number(form.stock || 0),
         taxable: form.taxable,
         isActive: form.isActive,
         brandId: form.brandId.trim() || undefined,
@@ -262,6 +300,7 @@ export default function AdminProductsPage() {
         averageRating: Number(form.averageRating || 0),
         reviewCount: Number(form.reviewCount || 0),
         categoryIds: form.categoryIds,
+        ...rfqPayload,
       });
       return;
     }
@@ -279,7 +318,7 @@ export default function AdminProductsPage() {
         slug: form.slug.trim() || undefined,
         description: form.description.trim(),
         price: Number(form.price),
-        stock: Number(form.stock),
+        stock: Number(form.stock || 0),
         taxable: form.taxable,
         isActive: form.isActive,
         brandId: form.brandId.trim() ? form.brandId.trim() : "null",
@@ -288,6 +327,7 @@ export default function AdminProductsPage() {
         averageRating: Number(form.averageRating || 0),
         reviewCount: Number(form.reviewCount || 0),
         categoryIds: form.categoryIds,
+        ...rfqPayload,
       },
     });
   };
@@ -499,6 +539,42 @@ export default function AdminProductsPage() {
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
                   />
                 </Field>
+                <Field label="Giá tham khảo từ (BasePrice)">
+                  <input
+                    type="number"
+                    value={form.basePrice}
+                    onChange={(event) => setForm((current) => ({ ...current, basePrice: event.target.value }))}
+                    placeholder="Để trống lấy theo Giá bán"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
+                <Field label="Giá gốc (OriginalPrice)">
+                  <input
+                    type="number"
+                    value={form.originalPrice}
+                    onChange={(event) => setForm((current) => ({ ...current, originalPrice: event.target.value }))}
+                    placeholder="VD: 199000"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
+                <Field label="Giảm giá (%)">
+                  <input
+                    type="number"
+                    value={form.discountPercent}
+                    onChange={(event) => setForm((current) => ({ ...current, discountPercent: event.target.value }))}
+                    placeholder="VD: 15"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
+                <Field label="Số lượng đặt tối thiểu (MOQ)">
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.minOrderQuantity}
+                    onChange={(event) => setForm((current) => ({ ...current, minOrderQuantity: event.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                  />
+                </Field>
                 <Field label="Điểm đánh giá trung bình">
                   <input
                     type="number"
@@ -521,6 +597,38 @@ export default function AdminProductsPage() {
                   />
                 </Field>
               </div>
+
+              <Field label="Chất liệu hỗ trợ (phân tách bằng dấu phẩy)">
+                <input
+                  value={form.availableMaterials}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, availableMaterials: event.target.value }))
+                  }
+                  placeholder="Cotton 100%, Cá sấu 65/35, Poly lạnh"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                />
+              </Field>
+              <Field label="Kỹ thuật in/thêu hỗ trợ (phân tách bằng dấu phẩy)">
+                <input
+                  value={form.availablePrintTechniques}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, availablePrintTechniques: event.target.value }))
+                  }
+                  placeholder="In lụa, In DTF, Thêu vi tính"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                />
+              </Field>
+              <Field label="Ghi chú báo giá (PriceNote)">
+                <textarea
+                  rows={2}
+                  value={form.priceNote}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, priceNote: event.target.value }))
+                  }
+                  placeholder="Giá phụ thuộc chất liệu, số lượng và kỹ thuật in..."
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
+                />
+              </Field>
 
               <Field label="Mã thương hiệu">
                 <input

@@ -1,11 +1,8 @@
-using api.DTOs.cart;
 using api.DTOs.chat;
-using api.DTOs.order;
+using api.DTOs.quote;
 using api.DTOs.review;
-using api.models.enums;
-using api.validators.cart;
 using api.validators.chat;
-using api.validators.order;
+using api.validators.quote;
 using api.validators.review;
 
 namespace api.Tests.Validators;
@@ -13,15 +10,17 @@ namespace api.Tests.Validators;
 public sealed class RequestValidatorTests
 {
     [Fact]
-    public void CreateOrderDtoValidator_AcceptsValidCheckoutRequest()
+    public void CreateQuoteRequestDtoValidator_AcceptsValidRfqRequest()
     {
-        var validator = new CreateOrderDtoValidator();
-        var dto = new CreateOrderDto
+        var validator = new CreateQuoteRequestDtoValidator();
+        var dto = new CreateQuoteRequestDto
         {
-            ShippingAddressId = "addr-1",
-            PaymentMethod = PaymentMethod.COD,
-            ShippingFee = 25_000,
-            Note = "Leave at reception"
+            ProductId = "product-1",
+            Quantity = 5,
+            CustomerName = "Nguyen Van A",
+            Phone = "0912345678",
+            Email = "customer@example.com",
+            Note = "Can bao gia so luong 5 cai"
         };
 
         var result = validator.Validate(dto);
@@ -30,43 +29,26 @@ public sealed class RequestValidatorTests
     }
 
     [Fact]
-    public void CreateOrderDtoValidator_RejectsInvalidCheckoutRequest()
+    public void CreateQuoteRequestDtoValidator_RejectsInvalidRfqRequest()
     {
-        var validator = new CreateOrderDtoValidator();
-        var dto = new CreateOrderDto
+        var validator = new CreateQuoteRequestDtoValidator();
+        var dto = new CreateQuoteRequestDto
         {
-            ShippingAddressId = "",
-            PaymentMethod = (PaymentMethod)999,
-            ShippingFee = -1,
-            Note = new string('x', 501)
+            ProductId = "product-1",
+            Quantity = 0,
+            CustomerName = "",
+            Phone = "invalid-phone",
+            Email = "not-an-email"
         };
 
         var result = validator.Validate(dto);
         var invalidProperties = result.Errors.Select(error => error.PropertyName).ToHashSet();
 
         Assert.False(result.IsValid);
-        Assert.Contains(nameof(CreateOrderDto.ShippingAddressId), invalidProperties);
-        Assert.Contains(nameof(CreateOrderDto.PaymentMethod), invalidProperties);
-        Assert.Contains(nameof(CreateOrderDto.ShippingFee), invalidProperties);
-        Assert.Contains(nameof(CreateOrderDto.Note), invalidProperties);
-    }
-
-    [Fact]
-    public void AddCartItemDtoValidator_RequiresVariantAndPositiveQuantity()
-    {
-        var validator = new AddCartItemDtoValidator();
-        var dto = new AddCartItemDto
-        {
-            ProductVariantId = "",
-            Quantity = 0
-        };
-
-        var result = validator.Validate(dto);
-        var invalidProperties = result.Errors.Select(error => error.PropertyName).ToHashSet();
-
-        Assert.False(result.IsValid);
-        Assert.Contains(nameof(AddCartItemDto.ProductVariantId), invalidProperties);
-        Assert.Contains(nameof(AddCartItemDto.Quantity), invalidProperties);
+        Assert.Contains(nameof(CreateQuoteRequestDto.Quantity), invalidProperties);
+        Assert.Contains(nameof(CreateQuoteRequestDto.CustomerName), invalidProperties);
+        Assert.Contains(nameof(CreateQuoteRequestDto.Phone), invalidProperties);
+        Assert.Contains(nameof(CreateQuoteRequestDto.Email), invalidProperties);
     }
 
     [Fact]

@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import bannerOne from "../../assets/images/banner/photo-1764698192249-641a17d7a4fe.avif";
 import bannerTwo from "../../assets/images/banner/photo-1763935724017-471cbc57d105.avif";
 import bannerThree from "../../assets/images/banner/photo-1765815442424-5acf90d01e41.avif";
+import { CUSTOM_CATEGORY_IDS } from "../../lib/catalog";
+import { ROUTES, routeTo } from "../../lib/routes";
 
 interface Slide {
   id: number;
@@ -21,45 +23,45 @@ interface Slide {
 const slides: Slide[] = [
   {
     id: 1,
-    eyebrow: "Bộ sưu tập mới 2026",
-    title: "Phong cách hiện đại",
-    highlight: "cho mỗi ngày",
+    eyebrow: "Bộ sưu tập Áo Custom 2026",
+    title: "Thiết kế áo riêng",
+    highlight: "cho tập thể & cá nhân",
     subtitle:
-      "Khám phá các thiết kế dễ mặc, phom dáng gọn gàng và chất liệu phù hợp với nhịp sống năng động.",
-    primaryLabel: "Mua sắm ngay",
-    primaryHref: "/shop?search=Áo",
-    secondaryLabel: "Xem tất cả",
-    secondaryHref: "/shop",
+      "Khám phá 37 mẫu Áo Có Cổ, Áo Cổ Tròn và Áo Hoodie custom in sắc nét, dễ dàng tùy chỉnh tên lớp và slogan theo yêu cầu.",
+    primaryLabel: "Xem mẫu & báo giá",
+    primaryHref: ROUTES.SHOP,
+    secondaryLabel: "Xem Áo Có Cổ",
+    secondaryHref: routeTo.shopCategory(CUSTOM_CATEGORY_IDS.POLO),
     imageUrl: bannerOne,
-    badge: "NEW",
+    badge: "CUSTOM",
   },
   {
     id: 2,
-    eyebrow: "Flash Sale - 50% OFF",
-    title: "Outfit nổi bật",
-    highlight: "giá tốt hôm nay",
+    eyebrow: "Áo Lớp & Đồng Phục Nhóm",
+    title: "Áo Có Cổ &",
+    highlight: "Áo Cổ Tròn nổi bật",
     subtitle:
-      "Săn nhanh áo khoác, sneaker và phụ kiện đang được yêu thích với ưu đãi tốt trong thời gian giới hạn.",
-    primaryLabel: "Xem ưu đãi",
-    primaryHref: "/shop?search=Sneaker",
-    secondaryLabel: "Sản phẩm mới",
-    secondaryHref: "/shop?search=Áo%20khoác",
+      "Chất liệu cotton cá sấu và thun cotton 250gsm thoáng mát, đa dạng phối màu học đường và street custom trẻ trung.",
+    primaryLabel: "Xem Áo Có Cổ",
+    primaryHref: routeTo.shopCategory(CUSTOM_CATEGORY_IDS.POLO),
+    secondaryLabel: "Xem Áo Cổ Tròn",
+    secondaryHref: routeTo.shopCategory(CUSTOM_CATEGORY_IDS.TSHIRT),
     imageUrl: bannerTwo,
-    badge: "-50%",
+    badge: "37 MẪU",
   },
   {
     id: 3,
-    eyebrow: "Phụ kiện chọn lọc",
-    title: "Hoàn thiện outfit",
-    highlight: "theo cách riêng",
+    eyebrow: "Hoodie Form Boxy 380gsm",
+    title: "Áo Hoodie Custom",
+    highlight: "ấm áp & cá tính",
     subtitle:
-      "Balo, túi xách và đồng hồ giúp bạn tạo điểm nhấn rõ ràng mà vẫn dễ phối với trang phục hằng ngày.",
-    primaryLabel: "Mua phụ kiện",
-    primaryHref: "/shop?search=Balo",
-    secondaryLabel: "Xem bộ sưu tập",
-    secondaryHref: "/shop?search=Phụ%20kiện",
+      "10 mẫu áo hoodie nỉ bông đứng form, mũ 2 lớp dày dặn, phù hợp cho đồng phục lớp, câu lạc bộ và hoạt động mùa thu đông.",
+    primaryLabel: "Xem Áo Hoodie",
+    primaryHref: routeTo.shopCategory(CUSTOM_CATEGORY_IDS.HOODIE),
+    secondaryLabel: "Xem tất cả",
+    secondaryHref: ROUTES.SHOP,
     imageUrl: bannerThree,
-    badge: "STYLE",
+    badge: "HOODIE",
   },
 ];
 

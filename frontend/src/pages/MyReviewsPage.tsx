@@ -82,16 +82,16 @@ export default function MyReviewsPage() {
 
         <div className="flex flex-wrap gap-3">
           <Link
-            to={ROUTES.ORDERS}
+            to={ROUTES.QUOTES}
             className="inline-flex h-10 items-center justify-center border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:border-gray-950 hover:text-gray-950"
           >
-            Đơn hàng của tôi 
+            Yêu cầu báo giá
           </Link>
           <Link
-            to={ROUTES.CANCELLATIONS}
+            to={ROUTES.SHOP}
             className="inline-flex h-10 items-center justify-center border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:border-gray-950 hover:text-gray-950"
           >
-            Đơn hàng đã hủy
+            Xem sản phẩm
           </Link>
         </div>
       </div>
@@ -100,10 +100,10 @@ export default function MyReviewsPage() {
         <div className="border border-dashed border-gray-200 px-6 py-10 text-center">
           <p className="text-sm text-lightText">Bạn chưa có đánh giá nào.</p>
           <Link
-            to={ROUTES.ORDERS}
+            to={ROUTES.SHOP}
             className="mt-5 inline-flex h-11 items-center justify-center bg-primeColor px-6 text-sm font-semibold text-white transition hover:bg-gray-800"
           >
-            Xem đơn hàng
+            Khám phá sản phẩm
           </Link>
         </div>
       ) : (

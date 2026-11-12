@@ -15,6 +15,8 @@ namespace api.models.entities
         public User Sender { get; set; }
         public string Message { get; set; }
         public ChatMessageType MessageType { get; set; }
+        public string? AttachmentsJson { get; set; }
+        public string? MetadataJson { get; set; }
         public bool IsRead { get; set; }
         public DateTime? ReadAt { get; set; }
         public DateTime Created { get; set; }

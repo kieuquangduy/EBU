@@ -1,5 +1,8 @@
 import type { OrderStatus, PaymentStatus, Role } from "./enums.type";
 import type { OrderStatusHistoryDto, ShippingDetailDto } from "./order.type";
+import type { QuoteStatus } from "./quoteRequest.type";
+
+export type OrderSource = "Storefront" | "FromQuote" | "ManualZalo";
 
 export interface LowStockProductDto {
   id: string;
@@ -15,6 +18,19 @@ export interface RecentOrderDto {
   totalAmount: number;
   status: OrderStatus;
   created: string;
+}
+
+export interface AdminRecentQuoteDto {
+  id: string;
+  quoteCode: string;
+  customerName: string;
+  phone: string;
+  organizationName?: string | null;
+  productName?: string | null;
+  quantity: number;
+  quotedPrice?: number | null;
+  status: QuoteStatus | string;
+  createdAt: string;
 }
 
 export interface AdminDashboardDto {
@@ -41,6 +57,16 @@ export interface AdminDashboardDto {
   monthlyRevenueTrend: RevenueTrendPointDto[];
   orderStatusAnalytics: OrderStatusAnalyticsDto[];
   topSellingProducts: TopSellingProductDto[];
+  totalQuotes: number;
+  pendingQuotes: number;
+  contactedQuotes: number;
+  quotedCount: number;
+  acceptedQuotes: number;
+  inProductionQuotes: number;
+  completedQuotes: number;
+  quoteConversionRate: number;
+  quotesByStatus: Partial<Record<QuoteStatus | string, number>>;
+  recentQuoteRequests: AdminRecentQuoteDto[];
 }
 
 export interface RevenueTrendPointDto {
@@ -94,6 +120,9 @@ export interface AdminUserDetailDto extends AdminUserListItemDto {
   totalSpent: number;
   lastOrderAt?: string | null;
   recentOrders?: RecentOrderDto[];
+  totalQuoteRequests?: number;
+  lastQuoteAt?: string | null;
+  recentQuoteRequests?: AdminRecentQuoteDto[];
 }
 
 export interface AdminUpdateUserRoleDto {
@@ -111,7 +140,10 @@ export interface AdminUpdateUserDto {
 
 export interface AdminOrderListItemDto {
   id: string;
-  userId: string;
+  orderCode?: string | null;
+  userId?: string | null;
+  source: OrderSource | string;
+  quoteRequestId?: string | null;
   customerName: string;
   receiverName: string;
   receiverPhone: string;
@@ -119,12 +151,13 @@ export interface AdminOrderListItemDto {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   itemCount: number;
+  note?: string | null;
   created: string;
   updated?: string | null;
 }
 
 export interface AdminOrderItemDto {
-  productId: string;
+  productId?: string | null;
   productVariantId?: string | null;
   productName: string;
   variantSku?: string | null;
@@ -137,12 +170,16 @@ export interface AdminOrderItemDto {
 
 export interface AdminOrderDetailDto {
   id: string;
-  userId: string;
+  orderCode?: string | null;
+  userId?: string | null;
+  source: OrderSource | string;
+  quoteRequestId?: string | null;
   customerName: string;
   customerEmail?: string | null;
   receiverName: string;
   receiverPhone: string;
   addressLine: string;
+  note?: string | null;
   subtotal: number;
   shippingFee: number;
   total: number;
@@ -155,6 +192,45 @@ export interface AdminOrderDetailDto {
   statusHistory: OrderStatusHistoryDto[];
 }
 
+export interface AdminCreateOrderFromQuoteDto {
+  receiverName?: string | null;
+  receiverPhone?: string | null;
+  addressLine: string;
+  subtotal?: number | null;
+  shippingFee: number;
+  note?: string | null;
+  isPaid: boolean;
+  paidAt?: string | null;
+}
+
+export interface AdminCreateOrderItemDto {
+  productId?: string | null;
+  productName: string;
+  variantSize?: string | null;
+  variantColor?: string | null;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface AdminCreateManualOrderDto {
+  receiverName: string;
+  receiverPhone: string;
+  addressLine: string;
+  userId?: string | null;
+  source: OrderSource;
+  note?: string | null;
+  shippingFee: number;
+  isPaid: boolean;
+  paidAt?: string | null;
+  items: AdminCreateOrderItemDto[];
+}
+
+export interface AdminUpdateOrderPaymentDto {
+  isPaid: boolean;
+  paidAt?: string | null;
+  note?: string | null;
+}
+
 export interface AdminUpdateOrderStatusDto {
   status: OrderStatus;
   trackingNumber?: string | null;
@@ -164,28 +240,6 @@ export interface AdminUpdateOrderStatusDto {
   trackingUrl?: string | null;
   estimatedDelivery?: string | null;
   note?: string | null;
-}
-
-export interface AdminInventoryOverviewDto {
-  totalProducts: number;
-  activeProducts: number;
-  totalVariants: number;
-  activeVariants: number;
-  totalStock: number;
-  lowStockCount: number;
-  outOfStockCount: number;
-  lowStockProducts: LowStockProductDto[];
-}
-
-export interface AdminUpdateVariantInventoryDto {
-  variantId: string;
-  stock: number;
-  isActive?: boolean | null;
-}
-
-export interface AdminUpdateInventoryDto {
-  stock?: number | null;
-  variants: AdminUpdateVariantInventoryDto[];
 }
 
 export interface AdminSettingsDto {
@@ -209,4 +263,13 @@ export interface UpdateAdminSettingsDto {
   enableOrderNotifications: boolean;
   enableInventoryAlerts: boolean;
   enableWeeklySummary: boolean;
+}
+
+export interface UpdateShopContactDto {
+  zaloPhone: string;
+  zaloOAId?: string | null;
+  hotline: string;
+  email: string;
+  messengerLink?: string | null;
+  workingHours?: string | null;
 }

@@ -517,6 +517,40 @@ export default function AdminUsersPage() {
                     <p className="mt-3 text-sm text-slate-500">Chưa có đơn hàng nào.</p>
                   )}
                 </div>
+
+                <div className="rounded-lg border border-slate-200/80 bg-white p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-800">Yêu cầu báo giá gần đây</p>
+                    <span className="text-xs text-slate-500">
+                      Tổng: {selectedUser.totalQuoteRequests ?? 0}
+                    </span>
+                  </div>
+                  {(selectedUser.recentQuoteRequests ?? []).length ? (
+                    <div className="mt-3 space-y-2">
+                      {(selectedUser.recentQuoteRequests ?? []).map((q) => (
+                        <div
+                          key={q.id}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-mono font-bold text-blue-700">{q.quoteCode}</p>
+                            <p className="truncate text-slate-600">
+                              {q.productName ?? "May theo yêu cầu"} · {q.quantity} áo
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-slate-900">
+                              {q.quotedPrice != null ? formatPrice(q.quotedPrice) : "Chờ báo giá"}
+                            </p>
+                            <p className="text-slate-400">{q.status}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">Chưa có yêu cầu báo giá nào.</p>
+                  )}
+                </div>
               </div>
             ) : (
               <AdminEmptyState

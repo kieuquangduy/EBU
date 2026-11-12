@@ -37,13 +37,13 @@ namespace api.services.implementations.chat
             var context = await BuildContextAsync(roomId, customerId, message, intent, ct);
 
             var answer = requiresHuman
-                ? "Yêu cầu này cần nhân viên HauShop xử lý trực tiếp. Bạn hãy mở popup chat nhân viên bên dưới và gửi lại mã đơn hàng, sản phẩm cần đổi trả hoặc yêu cầu cụ thể để được hỗ trợ nhanh hơn."
+                ? "Yêu cầu này cần nhân viên tư vấn của HauShop xử lý trực tiếp. Bạn hãy mở khung Chat với shop bên dưới hoặc nhắn qua Zalo để gửi mẫu áo, file logo và số lượng cụ thể nhé."
                 : await GenerateAnswerAsync(message, intent, context, ct);
 
             if (ShouldEscalate(answer))
             {
                 requiresHuman = true;
-                answer += "\n\nBạn hãy mở popup chat nhân viên bên dưới để tiếp tục với bộ phận hỗ trợ.";
+                answer += "\n\nBạn hãy mở khung Chat với shop bên dưới để tiếp tục với nhân viên tư vấn.";
             }
 
             if (requiresHuman)
@@ -63,10 +63,10 @@ namespace api.services.implementations.chat
         private async Task<string> BuildContextAsync(string roomId, string customerId, string message, AiChatIntent intent, CancellationToken ct)
         {
             var builder = new StringBuilder();
-            builder.AppendLine("Thông tin của HauShop:");
-            builder.AppendLine("- Hỗ trợ tư vấn sản phẩm, lọc theo giá/màu/size, kiểm tra đơn hàng, chính sách, combo và đổi trả.");
-            builder.AppendLine("- Chính sách đổi trả mặc định: hỗ trợ trong 7 ngày nếu sản phẩm còn tem/mác, chưa qua sử dụng và có bằng chứng mua hàng.");
-            builder.AppendLine("- Phí vận chuyển và thời gian giao hàng phụ thuộc địa chỉ nhận hàng và trạng thái đơn.");
+            builder.AppendLine("Thông tin của HauShop (đặt áo custom cho CLB / áo lớp / đồng phục theo báo giá RFQ):");
+            builder.AppendLine("- Hỗ trợ tư vấn mẫu áo, chất liệu vải (Cotton, Cá sấu, Poly, Nỉ...), kỹ thuật in/thêu (In lụa, DTF, Decal, Chuyển nhiệt, Thêu vi tính), số lượng tối thiểu và báo giá theo yêu cầu.");
+            builder.AppendLine("- Giá hiển thị trên web là giá tham khảo (giá từ), giá chính thức phụ thuộc vào chất liệu, số lượng áo và kỹ thuật in/thêu.");
+            builder.AppendLine("- Hỗ trợ thiết kế miễn phí logo theo yêu cầu và kiểm tra trạng thái Yêu cầu báo giá (RFQ).");
 
             var history = await _context.ChatMessages
                 .AsNoTracking()
@@ -106,37 +106,36 @@ namespace api.services.implementations.chat
                 }
             }
 
-            if (intent is AiChatIntent.OrderStatus or AiChatIntent.ReturnExchange)
+            if (intent is AiChatIntent.QuoteStatus or AiChatIntent.OrderStatus)
             {
-                var orders = await _context.Orders
+                var quotes = await _context.QuoteRequests
                     .AsNoTracking()
-                    .Include(o => o.OrderItems)
-                    .Include(o => o.ShippingDetail)
-                    .Where(o => o.UserId == customerId)
-                    .OrderByDescending(o => o.Created)
+                    .Where(q => q.UserId == customerId)
+                    .OrderByDescending(q => q.CreatedAt)
                     .Take(5)
-                    .Select(o => new
+                    .Select(q => new
                     {
-                        o.Id,
-                        o.Status,
-                        o.Total,
-                        o.Created,
-                        TrackingNumber = o.ShippingDetail == null ? null : o.ShippingDetail.TrackingNumber,
-                        Items = o.OrderItems.Select(i => $"{i.ProductName} x{i.Quantity} ({i.VariantColor}/{i.VariantSize})").ToList()
+                        q.QuoteCode,
+                        q.Status,
+                        q.Quantity,
+                        q.QuotedPrice,
+                        q.CreatedAt,
+                        ProductName = q.Product != null ? q.Product.Name : "Đơn may custom"
                     })
                     .ToListAsync(ct);
 
                 builder.AppendLine();
-                builder.AppendLine(OrderContextTitle);
-                if (orders.Count == 0)
+                builder.AppendLine(QuoteContextTitle);
+                if (quotes.Count == 0)
                 {
-                    builder.AppendLine("- Khách chưa có đơn hàng trong hệ thống.");
+                    builder.AppendLine("- Khách chưa có yêu cầu báo giá nào trong tài khoản.");
                 }
                 else
                 {
-                    foreach (var order in orders)
+                    foreach (var quote in quotes)
                     {
-                        builder.AppendLine($"- Đơn {order.Id}: {order.Status}, tổng {FormatMoney(order.Total)}, ngày {order.Created:dd/MM/yyyy}, vận đơn {order.TrackingNumber ?? "chưa có"}, sản phẩm: {string.Join("; ", order.Items)}");
+                        var priceText = quote.QuotedPrice.HasValue ? FormatMoney(quote.QuotedPrice.Value) : "chờ báo giá";
+                        builder.AppendLine($"- Mã {quote.QuoteCode}: {quote.ProductName} x{quote.Quantity} áo, trạng thái {quote.Status}, báo giá: {priceText}, ngày {quote.CreatedAt:dd/MM/yyyy}");
                     }
                 }
             }
@@ -156,29 +155,31 @@ namespace api.services.implementations.chat
 
             var query = _context.Products
                 .AsNoTracking()
-                .Where(p => p.IsActive && (p.Stock > 0 || p.ProductVariants.Any(v => v.IsActive && v.Stock > 0)));
+                .Where(p => p.IsActive);
 
             if (maxPrice.HasValue)
             {
-                query = query.Where(p => p.Price <= maxPrice.Value || p.ProductVariants.Any(v => v.IsActive && v.Stock > 0 && v.Price <= maxPrice.Value));
+                query = query.Where(p => (p.BasePrice > 0 ? p.BasePrice : p.Price) <= maxPrice.Value);
             }
 
             if (minPrice.HasValue)
             {
-                query = query.Where(p => p.Price >= minPrice.Value || p.ProductVariants.Any(v => v.IsActive && v.Stock > 0 && v.Price >= minPrice.Value));
+                query = query.Where(p => (p.BasePrice > 0 ? p.BasePrice : p.Price) >= minPrice.Value);
             }
 
             var products = await query
                 .OrderByDescending(p => p.AverageRating)
-                .ThenBy(p => p.Price)
+                .ThenBy(p => p.BasePrice > 0 ? p.BasePrice : p.Price)
                 .Select(p => new ProductSearchItem
                 {
                     Name = p.Name,
                     Description = p.Description,
                     Sku = p.Sku,
                     Slug = p.Slug,
-                    Price = p.Price,
-                    Stock = p.Stock,
+                    Price = p.BasePrice > 0 ? p.BasePrice : p.Price,
+                    MinOrderQuantity = p.MinOrderQuantity,
+                    AvailableMaterialsJson = p.AvailableMaterials,
+                    AvailablePrintTechniquesJson = p.AvailablePrintTechniques,
                     AverageRating = p.AverageRating,
                     BrandName = p.Brand != null ? p.Brand.Name : string.Empty,
                     CategoryNames = p.ProductCategories
@@ -196,20 +197,16 @@ namespace api.services.implementations.chat
                         .Where(pc => pc.Category != null)
                         .Select(pc => pc.Category.ParentId ?? string.Empty)
                         .ToList(),
-                    TotalVariantStock = p.ProductVariants
-                        .Where(v => v.IsActive)
-                        .Sum(v => (int?)v.Stock) ?? 0,
-                    MinVariantPrice = p.ProductVariants
-                        .Where(v => v.IsActive && v.Stock > 0)
-                        .Min(v => (decimal?)v.Price) ?? p.Price,
+                    MinVariantPrice = p.BasePrice > 0
+                        ? p.BasePrice
+                        : (p.ProductVariants.Where(v => v.IsActive).Min(v => (decimal?)v.Price) ?? p.Price),
                     Variants = p.ProductVariants
-                        .Where(v => v.IsActive && v.Stock > 0)
+                        .Where(v => v.IsActive)
                         .OrderBy(v => v.Price)
                         .Select(v => new ProductVariantSearchItem
                         {
                             Color = v.Color,
                             Size = v.Size,
-                            Stock = v.Stock,
                             Price = v.Price
                         })
                         .ToList()
@@ -253,11 +250,34 @@ namespace api.services.implementations.chat
                         .Where(v => wantedColors.Count == 0 || MatchesAnyToken(v.Color, wantedColors))
                         .Where(v => wantedSizes.Count == 0 || wantedSizes.Contains(Normalize(v.Size ?? string.Empty)))
                         .Take(5)
-                        .Select(v => $"{v.Color}/{v.Size} còn {v.Stock} sp {FormatMoney(v.Price)}");
+                        .Select(v => $"{v.Color}/{v.Size}")
+                        .Distinct();
 
-                    var stock = p.TotalVariantStock > 0 ? p.TotalVariantStock : p.Stock;
+                    var materials = ParseJsonListSummary(p.AvailableMaterialsJson);
+                    var techniques = ParseJsonListSummary(p.AvailablePrintTechniquesJson);
+                    var extra = new List<string>
+                    {
+                        $"giá từ {FormatMoney(p.MinVariantPrice)}",
+                        $"tối thiểu {p.MinOrderQuantity} áo"
+                    };
 
-                    return $"{p.Name} - từ {FormatMoney(p.MinVariantPrice)}, tồn {stock}, đánh giá {p.AverageRating:0.0}/5, biến thể: {string.Join("; ", variants)}";
+                    if (!string.IsNullOrEmpty(materials))
+                    {
+                        extra.Add($"chất liệu: {materials}");
+                    }
+
+                    if (!string.IsNullOrEmpty(techniques))
+                    {
+                        extra.Add($"in/thêu: {techniques}");
+                    }
+
+                    var variantSummary = string.Join(", ", variants);
+                    if (!string.IsNullOrEmpty(variantSummary))
+                    {
+                        extra.Add($"mẫu/size: {variantSummary}");
+                    }
+
+                    return $"{p.Name} ({string.Join(" | ", extra)})";
                 })
                 .ToList();
         }
@@ -309,13 +329,13 @@ namespace api.services.implementations.chat
         {
             return intent switch
             {
-                AiChatIntent.ProductFilter => $"Mình đã lọc theo yêu cầu của bạn trong dữ liệu hiện có:\n{ExtractContextSection(context, ProductContextTitle)}\nBạn có thể gửi thêm mức giá, màu hoặc size để mình lọc sát hơn.",
-                AiChatIntent.ProductAdvice => $"Mình gợi ý một số sản phẩm phù hợp:\n{ExtractContextSection(context, ProductContextTitle)}\nNếu bạn cho mình biết phong cách, ngân sách và size thường mặc, mình sẽ tư vấn chính xác hơn.",
-                AiChatIntent.Combo => $"Combo nên chọn dựa trên sản phẩm hiện có:\n{ExtractContextSection(context, ProductContextTitle)}\nGợi ý nhanh: chọn 1 món chính, 1 phụ kiện cùng tone màu và 1 sản phẩm có size/màu còn hàng.",
-                AiChatIntent.OrderStatus => $"Mình kiểm tra được các đơn hàng gần đây của bạn:\n{ExtractContextSection(context, OrderContextTitle)}",
-                AiChatIntent.Policy => "HauShop hỗ trợ đổi trả trong 7 ngày nếu sản phẩm còn tem/mác, chưa qua sử dụng và có bằng chứng mua hàng. Với lỗi do shop hoặc giao sai sản phẩm, bạn gửi hình ảnh/tình trạng để được hỗ trợ nhanh.",
-                AiChatIntent.ReturnExchange => $"Mình có thể hỗ trợ đổi trả dựa trên đơn hàng của bạn:\n{ExtractContextSection(context, OrderContextTitle)}\nBạn vui lòng gửi mã đơn, sản phẩm cần đổi/trả, lý do và hình ảnh nếu có.",
-                _ => "Mình có thể tư vấn sản phẩm, lọc theo giá/màu/size, kiểm tra đơn hàng, giải thích chính sách, gợi ý combo và hỗ trợ đổi trả. Bạn muốn mình hỗ trợ phần nào?"
+                AiChatIntent.ProductFilter => $"Mình đã lọc một số mẫu áo custom phù hợp trong hệ thống:\n{ExtractContextSection(context, ProductContextTitle)}\nLưu ý: giá hiển thị là giá từ tham khảo. Bạn bấm \"Nhận báo giá\" hoặc cho mình biết số lượng, chất liệu và kỹ thuật in để nhận giá chính xác nhé.",
+                AiChatIntent.ProductAdvice => $"Mình gợi ý các mẫu áo phù hợp để làm áo lớp / đồng phục CLB:\n{ExtractContextSection(context, ProductContextTitle)}\nNếu bạn cho mình biết số lượng áo dự kiến, chất liệu vải (Cotton/Cá sấu/Poly) và kỹ thuật in/thêu, mình sẽ tư vấn sát hơn.",
+                AiChatIntent.Combo => $"Gợi ý mẫu áo đồng phục / CLB cho nhóm của bạn:\n{ExtractContextSection(context, ProductContextTitle)}\nSố lượng đặt càng nhiều đơn giá càng tối ưu; bạn có thể nhấn \"Nhận báo giá\" kèm file logo để thiết kế miễn phí.",
+                AiChatIntent.QuoteStatus or AiChatIntent.OrderStatus => $"Thông tin yêu cầu báo giá (RFQ) gần đây của bạn:\n{ExtractContextSection(context, QuoteContextTitle)}",
+                AiChatIntent.Policy => "HauShop chuyên nhận đặt áo custom cho CLB, áo lớp và đội nhóm theo yêu cầu (RFQ). Giá thay đổi theo chất liệu vải, số lượng áo và kỹ thuật in/thêu; hỗ trợ thiết kế miễn phí logo, kiểm duyệt mẫu và bảo hành lỗi in ấn do sản xuất.",
+                AiChatIntent.ReturnExchange => "Với sản phẩm đặt may custom có lỗi in ấn, sai mẫu hoặc thiếu số lượng từ phía xưởng, bạn hãy nhắn vào khung Chat với shop kèm ảnh thực tế và mã RFQ để nhân viên hỗ trợ xử lý ngay nhé.",
+                _ => "Mình có thể tư vấn mẫu áo CLB/áo lớp, chất liệu vải, kỹ thuật in/thêu, số lượng tối thiểu và kiểm tra tiến độ yêu cầu báo giá (RFQ). Bạn đang cần làm mẫu áo nào?"
             };
         }
 
@@ -323,12 +343,12 @@ namespace api.services.implementations.chat
         {
             var text = Normalize(message);
             if (ContainsAny(text, "nhan vien", "nguoi that", "admin", "gap nguoi", "tu van vien")) return AiChatIntent.HumanHandoff;
-            if (ContainsAny(text, "doi tra", "doi hang", "tra hang", "hoan tien", "bao hanh", "loi hang")) return AiChatIntent.ReturnExchange;
-            if (ContainsAny(text, "don hang", "ma don", "van don", "giao hang", "trang thai don", "ship")) return AiChatIntent.OrderStatus;
-            if (ContainsAny(text, "chinh sach", "phi ship", "van chuyen", "thanh toan", "bao mat")) return AiChatIntent.Policy;
-            if (ContainsAny(text, "combo", "phoi", "set", "mac chung", "di kem")) return AiChatIntent.Combo;
+            if (ContainsAny(text, "loi in", "bao hanh", "sai mau", "doi tra")) return AiChatIntent.ReturnExchange;
+            if (ContainsAny(text, "bao gia", "rfq", "yeu cau", "trang thai", "tien do", "don hang", "ma don")) return AiChatIntent.QuoteStatus;
+            if (ContainsAny(text, "chinh sach", "chat lieu", "vai", "ky thuat in", "in lua", "dtf", "theu", "thiet ke", "logo", "toi thieu")) return AiChatIntent.Policy;
+            if (ContainsAny(text, "combo", "ao lop", "clb", "dong phuc", "nhom")) return AiChatIntent.Combo;
             if (ContainsAny(text, "gia", "duoi", "tren", "mau", "size", "kich co", "loc")) return AiChatIntent.ProductFilter;
-            if (ContainsAny(text, "tu van", "goi y", "nen mua", "san pham", "ao", "quan", "giay", "tui", "dong ho")) return AiChatIntent.ProductAdvice;
+            if (ContainsAny(text, "tu van", "goi y", "mau ao", "san pham", "ao", "quan")) return AiChatIntent.ProductAdvice;
             return AiChatIntent.General;
         }
 
@@ -678,8 +698,26 @@ namespace api.services.implementations.chat
 
         private static string FormatMoney(decimal value) => $"{value.ToString("N0", CultureInfo.GetCultureInfo("vi-VN"))} VND";
 
-        private const string ProductContextTitle = "Sản phẩm liên quan trong database:";
-        private const string OrderContextTitle = "Đơn hàng gần đây của khách:";
+        private static string ParseJsonListSummary(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                var items = JsonSerializer.Deserialize<List<string>>(json);
+                return items is { Count: > 0 } ? string.Join(", ", items.Take(4)) : string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private const string ProductContextTitle = "Mẫu áo liên quan trong hệ thống:";
+        private const string QuoteContextTitle = "Yêu cầu báo giá gần đây của khách:";
 
         private const string MaleCategoryId = "CAT100";
         private const string FemaleCategoryId = "CAT200";
@@ -876,14 +914,15 @@ namespace api.services.implementations.chat
             public string Sku { get; set; } = string.Empty;
             public string Slug { get; set; } = string.Empty;
             public decimal Price { get; set; }
-            public int Stock { get; set; }
+            public int MinOrderQuantity { get; set; }
+            public string? AvailableMaterialsJson { get; set; }
+            public string? AvailablePrintTechniquesJson { get; set; }
             public decimal AverageRating { get; set; }
             public string BrandName { get; set; } = string.Empty;
             public List<string> CategoryNames { get; set; } = new();
             public List<string> CategorySlugs { get; set; } = new();
             public List<string> CategoryIds { get; set; } = new();
             public List<string> CategoryParentIds { get; set; } = new();
-            public int TotalVariantStock { get; set; }
             public decimal MinVariantPrice { get; set; }
             public List<ProductVariantSearchItem> Variants { get; set; } = new();
         }
@@ -899,7 +938,6 @@ namespace api.services.implementations.chat
         {
             public string? Color { get; set; }
             public string? Size { get; set; }
-            public int Stock { get; set; }
             public decimal Price { get; set; }
         }
 
@@ -937,6 +975,7 @@ namespace api.services.implementations.chat
             General,
             ProductAdvice,
             ProductFilter,
+            QuoteStatus,
             OrderStatus,
             Policy,
             Combo,

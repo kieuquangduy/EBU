@@ -18,9 +18,9 @@ export const cachePolicy = {
     staleTime: 5 * minute,
     gcTime: 30 * minute,
   },
-  cart: {
-    staleTime: 2 * minute,
-    gcTime: 24 * hour,
+  shopContact: {
+    staleTime: 10 * minute,
+    gcTime: hour,
   },
   suggestions: {
     staleTime: 2 * minute,
@@ -30,7 +30,7 @@ export const cachePolicy = {
     staleTime: 5 * minute,
     gcTime: 15 * minute,
   },
-  order: {
+  quotes: {
     staleTime: 30 * 1000,
     gcTime: 10 * minute,
   },

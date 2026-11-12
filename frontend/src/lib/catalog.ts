@@ -28,3 +28,16 @@ export const STATUS_OPTIONS = [
 ] as const;
 
 export const PAGE_SIZE = 15;
+
+export const CUSTOM_CATEGORY_IDS = {
+  ROOT: "CAT_CUSTOM",
+  POLO: "CAT_POLO",
+  TSHIRT: "CAT_TSHIRT",
+  HOODIE: "CAT_HOODIE",
+} as const;
+
+export const CUSTOM_CATEGORY_OPTIONS = [
+  { id: CUSTOM_CATEGORY_IDS.POLO, name: "Áo Có Cổ" },
+  { id: CUSTOM_CATEGORY_IDS.TSHIRT, name: "Áo Cổ Tròn" },
+  { id: CUSTOM_CATEGORY_IDS.HOODIE, name: "Áo Hoodie" },
+] as const;

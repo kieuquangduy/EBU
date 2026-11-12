@@ -66,12 +66,6 @@ export interface PagedOrderDto {
   totalPages: number;
 }
 
-export interface CheckoutResponseDto {
-  order: OrderDto;
-  requiresRedirect: boolean;
-  paymentUrl?: string | null;
-}
-
 export interface ShippingDetailDto {
   id: string;
   method: string;

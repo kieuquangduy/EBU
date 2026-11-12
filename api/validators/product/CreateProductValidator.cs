@@ -20,9 +20,36 @@ namespace api.validators.product
                 .NotEmpty().WithMessage("Mô tả không được để trống")
                 .MaximumLength(5000).WithMessage("Mô tả tối đa 5000 ký tự");
 
-            RuleFor(x => x.Price)
-                .GreaterThan(0).WithMessage("Giá phải lớn hơn 0")
-                .LessThan(1_000_000_000).WithMessage("Giá không hợp lệ");
+            RuleFor(x => x)
+                .Must(x => (x.BasePrice ?? x.Price) > 0 && (x.BasePrice ?? x.Price) < 1_000_000_000)
+                .WithName("Price")
+                .WithMessage("Giá phải lớn hơn 0 và nhỏ hơn 1.000.000.000");
+
+            RuleFor(x => x.OriginalPrice)
+                .GreaterThanOrEqualTo(x => x.BasePrice ?? x.Price)
+                .WithMessage("Giá gốc phải lớn hơn hoặc bằng giá từ")
+                .When(x => x.OriginalPrice.HasValue);
+
+            RuleFor(x => x.DiscountPercent)
+                .InclusiveBetween(0, 99)
+                .WithMessage("Phần trăm giảm giá phải từ 0 đến 99")
+                .When(x => x.DiscountPercent.HasValue);
+
+            RuleFor(x => x.PriceNote)
+                .MaximumLength(500).WithMessage("Ghi chú giá tối đa 500 ký tự")
+                .When(x => x.PriceNote != null);
+
+            RuleFor(x => x.MinOrderQuantity)
+                .InclusiveBetween(1, 100000).WithMessage("Số lượng tối thiểu phải từ 1 đến 100.000")
+                .When(x => x.MinOrderQuantity.HasValue);
+
+            RuleFor(x => x.AvailableMaterials)
+                .Must(list => list!.Count <= 20).WithMessage("Tối đa 20 chất liệu gợi ý")
+                .When(x => x.AvailableMaterials != null);
+
+            RuleFor(x => x.AvailablePrintTechniques)
+                .Must(list => list!.Count <= 20).WithMessage("Tối đa 20 kỹ thuật in gợi ý")
+                .When(x => x.AvailablePrintTechniques != null);
 
             RuleFor(x => x.CategoryIds)
                 .NotNull().WithMessage("CategoryIds không được null");

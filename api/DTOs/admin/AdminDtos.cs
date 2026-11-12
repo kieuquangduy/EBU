@@ -32,6 +32,23 @@ namespace api.DTOs.admin
         public decimal TotalSpent { get; set; }
         public DateTime? LastOrderAt { get; set; }
         public List<RecentOrderDto> RecentOrders { get; set; } = new();
+        public int TotalQuoteRequests { get; set; }
+        public DateTime? LastQuoteAt { get; set; }
+        public List<AdminRecentQuoteDto> RecentQuoteRequests { get; set; } = new();
+    }
+
+    public class AdminRecentQuoteDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string QuoteCode { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string? OrganizationName { get; set; }
+        public string? ProductName { get; set; }
+        public int Quantity { get; set; }
+        public decimal? QuotedPrice { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
     }
 
     public class AdminUpdateUserRoleDto
@@ -52,7 +69,10 @@ namespace api.DTOs.admin
     public class AdminOrderListItemDto
     {
         public string Id { get; set; } = string.Empty;
-        public string UserId { get; set; } = string.Empty;
+        public string? OrderCode { get; set; }
+        public string? UserId { get; set; }
+        public string Source { get; set; } = OrderSource.Storefront.ToString();
+        public string? QuoteRequestId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string ReceiverName { get; set; } = string.Empty;
         public string ReceiverPhone { get; set; } = string.Empty;
@@ -60,6 +80,7 @@ namespace api.DTOs.admin
         public string Status { get; set; } = string.Empty;
         public string PaymentStatus { get; set; } = string.Empty;
         public int ItemCount { get; set; }
+        public string? Note { get; set; }
         public DateTime Created { get; set; }
         public DateTime? Updated { get; set; }
     }
@@ -67,12 +88,16 @@ namespace api.DTOs.admin
     public class AdminOrderDetailDto
     {
         public string Id { get; set; } = string.Empty;
-        public string UserId { get; set; } = string.Empty;
+        public string? OrderCode { get; set; }
+        public string? UserId { get; set; }
+        public string Source { get; set; } = OrderSource.Storefront.ToString();
+        public string? QuoteRequestId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string? CustomerEmail { get; set; }
         public string ReceiverName { get; set; } = string.Empty;
         public string ReceiverPhone { get; set; } = string.Empty;
         public string AddressLine { get; set; } = string.Empty;
+        public string? Note { get; set; }
         public decimal Subtotal { get; set; }
         public decimal ShippingFee { get; set; }
         public decimal Total { get; set; }
@@ -87,7 +112,7 @@ namespace api.DTOs.admin
 
     public class AdminOrderItemDto
     {
-        public string ProductId { get; set; } = string.Empty;
+        public string? ProductId { get; set; }
         public string? ProductVariantId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string? VariantSku { get; set; }
@@ -98,33 +123,51 @@ namespace api.DTOs.admin
         public decimal Total { get; set; }
     }
 
+    public class AdminCreateOrderFromQuoteDto
+    {
+        public string? ReceiverName { get; set; }
+        public string? ReceiverPhone { get; set; }
+        public string AddressLine { get; set; } = string.Empty;
+        public decimal? Subtotal { get; set; }
+        public decimal ShippingFee { get; set; }
+        public string? Note { get; set; }
+        public bool IsPaid { get; set; }
+        public DateTime? PaidAt { get; set; }
+    }
+
+    public class AdminCreateManualOrderDto
+    {
+        public string ReceiverName { get; set; } = string.Empty;
+        public string ReceiverPhone { get; set; } = string.Empty;
+        public string AddressLine { get; set; } = string.Empty;
+        public string? UserId { get; set; }
+        public OrderSource Source { get; set; } = OrderSource.ManualZalo;
+        public string? Note { get; set; }
+        public decimal ShippingFee { get; set; }
+        public bool IsPaid { get; set; }
+        public DateTime? PaidAt { get; set; }
+        public List<AdminCreateOrderItemDto> Items { get; set; } = new();
+    }
+
+    public class AdminCreateOrderItemDto
+    {
+        public string? ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public string? VariantSize { get; set; }
+        public string? VariantColor { get; set; }
+        public int Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+    }
+
+    public class AdminUpdateOrderPaymentDto
+    {
+        public bool IsPaid { get; set; }
+        public DateTime? PaidAt { get; set; }
+        public string? Note { get; set; }
+    }
+
     public class AdminUpdateOrderStatusDto : UpdateOrderStatusDto
     {
-    }
-
-    public class AdminInventoryOverviewDto
-    {
-        public int TotalProducts { get; set; }
-        public int ActiveProducts { get; set; }
-        public int TotalVariants { get; set; }
-        public int ActiveVariants { get; set; }
-        public int TotalStock { get; set; }
-        public int LowStockCount { get; set; }
-        public int OutOfStockCount { get; set; }
-        public List<LowStockProductDto> LowStockProducts { get; set; } = new();
-    }
-
-    public class AdminUpdateVariantInventoryDto
-    {
-        public string VariantId { get; set; } = string.Empty;
-        public int Stock { get; set; }
-        public bool? IsActive { get; set; }
-    }
-
-    public class AdminUpdateInventoryDto
-    {
-        public int? Stock { get; set; }
-        public List<AdminUpdateVariantInventoryDto> Variants { get; set; } = new();
     }
 
     public class AdminSettingsDto

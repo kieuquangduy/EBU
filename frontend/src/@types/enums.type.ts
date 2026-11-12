@@ -36,6 +36,8 @@ export const NotificationTypes = {
   Return: "Return",
   Refund: "Refund",
   ChatMessage: "ChatMessage",
+  QuoteCreated: "QuoteCreated",
+  QuoteStatusChanged: "QuoteStatusChanged",
 } as const;
 
 export type NotificationType = (typeof NotificationTypes)[keyof typeof NotificationTypes];

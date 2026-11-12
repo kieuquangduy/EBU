@@ -1,4 +1,4 @@
-import jacketImage from "../../assets/images/products/aokhoacnam4.webp";
+import featuredHoodieImage from "../../assets/images/products/áo hoodie/hd01.png";
 import { useScrollReveal } from "../../hooks/useScrollReveal";
 import { ROUTES } from "../../lib/routes";
 import { Link } from "react-router-dom";
@@ -43,7 +43,7 @@ export default function DarkStrip() {
           to={ROUTES.SHOP}
           className="group inline-flex self-start items-center gap-3 bg-red-500 px-10 py-4 font-bodyFont text-sm font-semibold tracking-widest text-white transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_rgba(239,68,68,0.4)]"
         >
-          MUA NGAY
+          NHẬN BÁO GIÁ NGAY
           <svg className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
@@ -54,24 +54,24 @@ export default function DarkStrip() {
         className={`relative min-h-[500px] overflow-hidden bg-[#151515] transition-all duration-700 delay-200 lg:min-h-[560px] ${visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-8"}`}
       >
         <img
-          src={jacketImage}
-          alt="Premium Jacket"
+          src={featuredHoodieImage}
+          alt="Áo Hoodie Custom Champions A2"
           className="absolute inset-0 h-full w-full object-cover object-[center_58%] opacity-95"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-primeColor/85 via-primeColor/25 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
         <div className="absolute left-6 top-6 z-10 bg-red-500 px-4 py-2 font-bodyFont text-[10px] font-semibold tracking-[2px] text-white shadow-[0_18px_36px_rgba(239,68,68,0.24)] sm:left-10 sm:top-10">
-          BEST SELLER 2025
+          BEST SELLER 2026
         </div>
         <div className="relative z-10 flex h-full min-h-[500px] w-full items-end p-6 sm:p-10 lg:min-h-[560px] lg:p-12">
           <div className="max-w-md">
             <p className="font-titleFont text-[34px] font-bold leading-tight text-white sm:text-[46px]">
-              Premium Jacket
+              Hoodie Custom A2
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <p className="font-bodyFont text-xl font-semibold text-white">299.000đ</p>
+              <p className="font-bodyFont text-xl font-semibold text-white">Giá từ 389.000đ</p>
               <span className="bg-white px-3.5 py-1.5 font-bodyFont text-xs font-bold text-primeColor">
-                -30%
+                CUSTOM
               </span>
             </div>
           </div>

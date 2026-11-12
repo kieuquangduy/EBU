@@ -12,11 +12,11 @@ type Props = {
 };
 
 const AI_SUGGESTIONS = [
-  "Tư vấn áo khoác dưới 500k",
-  "Lọc màu đen size L",
-  "Kiểm tra đơn hàng của tôi",
-  "Chính sách đổi trả",
-  "Gợi ý phối đồ combo",
+  "Tư vấn vải cotton may áo lớp",
+  "Số lượng tối thiểu đặt in bao nhiêu cái?",
+  "Phân biệt in lụa và in DTF",
+  "Hướng dẫn gửi yêu cầu báo giá",
+  "Thời gian sản xuất & giao hàng",
 ];
 
 function isSameDay(a: string, b: string) {
@@ -184,7 +184,7 @@ export default function AiChatPanel({ onClose, onSwitchToSupport }: Props) {
           </div>
           <p className="mt-2 text-xs font-bold text-slate-800">HauShop AI Assistant</p>
           <p className="text-[11px] text-slate-500">
-            Hỗ trợ tìm sản phẩm, lọc màu/size, kiểm tra đơn hàng & chính sách.
+            Tư vấn chất liệu, kỹ thuật in/thêu, số lượng &amp; hướng dẫn nhận báo giá.
           </p>
         </div>
 

@@ -24,6 +24,36 @@ namespace api.validators.product
                 .GreaterThan(0).WithMessage("Giá phải lớn hơn 0")
                 .LessThan(1_000_000_000).WithMessage("Giá không hợp lệ")
                 .When(x => x.Price.HasValue);
+
+            RuleFor(x => x.BasePrice)
+                .GreaterThan(0).WithMessage("Giá từ phải lớn hơn 0")
+                .LessThan(1_000_000_000).WithMessage("Giá từ không hợp lệ")
+                .When(x => x.BasePrice.HasValue);
+
+            RuleFor(x => x.OriginalPrice)
+                .GreaterThan(0).WithMessage("Giá gốc phải lớn hơn 0")
+                .LessThan(1_000_000_000).WithMessage("Giá gốc không hợp lệ")
+                .When(x => x.OriginalPrice.HasValue);
+
+            RuleFor(x => x.DiscountPercent)
+                .InclusiveBetween(0, 99).WithMessage("Phần trăm giảm giá phải từ 0 đến 99")
+                .When(x => x.DiscountPercent.HasValue);
+
+            RuleFor(x => x.PriceNote)
+                .MaximumLength(500).WithMessage("Ghi chú giá tối đa 500 ký tự")
+                .When(x => x.PriceNote != null);
+
+            RuleFor(x => x.MinOrderQuantity)
+                .InclusiveBetween(1, 100000).WithMessage("Số lượng tối thiểu phải từ 1 đến 100.000")
+                .When(x => x.MinOrderQuantity.HasValue);
+
+            RuleFor(x => x.AvailableMaterials)
+                .Must(list => list!.Count <= 20).WithMessage("Tối đa 20 chất liệu gợi ý")
+                .When(x => x.AvailableMaterials != null);
+
+            RuleFor(x => x.AvailablePrintTechniques)
+                .Must(list => list!.Count <= 20).WithMessage("Tối đa 20 kỹ thuật in gợi ý")
+                .When(x => x.AvailablePrintTechniques != null);
         }
     }
 }

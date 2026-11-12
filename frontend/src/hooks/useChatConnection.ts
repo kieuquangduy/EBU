@@ -1,6 +1,11 @@
 import * as signalR from "@microsoft/signalr";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChatMessageDto, MessagesReadEventDto, SendChatMessageDto } from "../@types/chat.type";
+import type {
+  AdminPresenceDto,
+  ChatMessageDto,
+  MessagesReadEventDto,
+  SendChatMessageDto,
+} from "../@types/chat.type";
 import { SIGNALR_HUB_URL } from "../lib/env";
 
 export function useChatConnection({
@@ -8,16 +13,20 @@ export function useChatConnection({
   onMessage,
   onRoomUpdated,
   onMessagesRead,
+  onAdminPresenceChanged,
 }: {
   enabled: boolean;
   onMessage?: (message: ChatMessageDto) => void;
   onRoomUpdated?: (roomId: string) => void;
   onMessagesRead?: (event: MessagesReadEventDto) => void;
+  onAdminPresenceChanged?: (event: AdminPresenceDto) => void;
 }) {
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const onMessageRef = useRef<typeof onMessage>(onMessage);
   const onRoomUpdatedRef = useRef<typeof onRoomUpdated>(onRoomUpdated);
   const onMessagesReadRef = useRef<typeof onMessagesRead>(onMessagesRead);
+  const onAdminPresenceChangedRef =
+    useRef<typeof onAdminPresenceChanged>(onAdminPresenceChanged);
   const [status, setStatus] = useState<"idle" | "connecting" | "connected" | "disconnected">("idle");
 
   useEffect(() => {
@@ -31,6 +40,10 @@ export function useChatConnection({
   useEffect(() => {
     onMessagesReadRef.current = onMessagesRead;
   }, [onMessagesRead]);
+
+  useEffect(() => {
+    onAdminPresenceChangedRef.current = onAdminPresenceChanged;
+  }, [onAdminPresenceChanged]);
 
   const connection = useMemo(() => {
     if (!enabled) return null;
@@ -54,6 +67,9 @@ export function useChatConnection({
     connection.on("ReceiveMessage", (message: ChatMessageDto) => onMessageRef.current?.(message));
     connection.on("RoomUpdated", (roomId: string) => onRoomUpdatedRef.current?.(roomId));
     connection.on("MessagesRead", (payload: MessagesReadEventDto) => onMessagesReadRef.current?.(payload));
+    connection.on("AdminPresenceChanged", (payload: AdminPresenceDto) =>
+      onAdminPresenceChangedRef.current?.(payload)
+    );
     connection.onreconnecting(() => setStatus("connecting"));
     connection.onreconnected(() => setStatus("connected"));
     connection.onclose(() => setStatus("disconnected"));
@@ -75,6 +91,7 @@ export function useChatConnection({
       connection.off("ReceiveMessage");
       connection.off("RoomUpdated");
       connection.off("MessagesRead");
+      connection.off("AdminPresenceChanged");
       void connection.stop();
       if (connectionRef.current === connection) {
         connectionRef.current = null;
@@ -100,6 +117,8 @@ export function useChatConnection({
       chatRoomId: dto.chatRoomId,
       message: dto.message,
       messageType: dto.messageType ?? "Text",
+      attachmentUrls: dto.attachmentUrls ?? [],
+      productId: dto.productId ?? null,
     });
   }, []);
 

@@ -203,78 +203,6 @@ namespace api.Migrations
                     b.ToTable("Brands");
                 });
 
-            modelBuilder.Entity("api.models.entities.Cart", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<DateTime>("Created")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("Carts");
-                });
-
-            modelBuilder.Entity("api.models.entities.CartItem", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("CartId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<DateTime>("Created")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<decimal>("Price")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("ProductId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("ProductVariantId")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("ProductVariantId");
-
-                    b.HasIndex("CartId", "ProductId");
-
-                    b.HasIndex("CartId", "ProductVariantId");
-
-                    b.ToTable("CartItems", t =>
-                        {
-                            t.HasCheckConstraint("CK_CartItem_Quantity", "`Quantity` > 0");
-                        });
-                });
-
             modelBuilder.Entity("api.models.entities.Category", b =>
                 {
                     b.Property<string>("Id")
@@ -318,6 +246,9 @@ namespace api.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<string>("AttachmentsJson")
+                        .HasColumnType("json");
+
                     b.Property<string>("ChatRoomId")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -342,6 +273,9 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(0);
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("json");
 
                     b.Property<DateTime?>("ReadAt")
                         .HasColumnType("datetime");
@@ -389,6 +323,14 @@ namespace api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
+                    b.Property<string>("ProductId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("QuoteRequestId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<int>("Type")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -397,6 +339,10 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Created");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("QuoteRequestId");
 
                     b.HasIndex("Type");
 
@@ -492,6 +438,10 @@ namespace api.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<string>("QuoteRequestId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<DateTime?>("ReadAt")
                         .HasColumnType("datetime");
 
@@ -515,6 +465,9 @@ namespace api.Migrations
 
                     b.HasIndex("OrderId")
                         .HasDatabaseName("IX_Notifications_OrderId");
+
+                    b.HasIndex("QuoteRequestId")
+                        .HasDatabaseName("IX_Notifications_QuoteRequestId");
 
                     b.HasIndex("UserId", "IsRead", "Created")
                         .HasDatabaseName("IX_Notifications_User_Read_Created");
@@ -541,6 +494,18 @@ namespace api.Migrations
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("OrderCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("QuoteRequestId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<string>("ReceiverName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -561,6 +526,11 @@ namespace api.Migrations
                         .HasColumnType("decimal(18,2)")
                         .HasDefaultValue(0m);
 
+                    b.Property<int>("Source")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -578,7 +548,6 @@ namespace api.Migrations
                         .HasColumnType("datetime");
 
                     b.Property<string>("UserId")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
@@ -586,7 +555,13 @@ namespace api.Migrations
 
                     b.HasIndex("Created");
 
+                    b.HasIndex("OrderCode");
+
+                    b.HasIndex("QuoteRequestId");
+
                     b.HasIndex("ShippingAddressId");
+
+                    b.HasIndex("Source");
 
                     b.HasIndex("UserId");
 
@@ -627,7 +602,6 @@ namespace api.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("ProductId")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
@@ -874,10 +848,22 @@ namespace api.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<string>("AvailableMaterials")
+                        .HasColumnType("json");
+
+                    b.Property<string>("AvailablePrintTechniques")
+                        .HasColumnType("json");
+
                     b.Property<decimal>("AverageRating")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(3, 2)
                         .HasColumnType("decimal(3,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("BasePrice")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
                         .HasDefaultValue(0m);
 
                     b.Property<string>("BrandId")
@@ -894,6 +880,9 @@ namespace api.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("varchar(5000)");
 
+                    b.Property<int?>("DiscountPercent")
+                        .HasColumnType("int");
+
                     b.Property<string>("ImageKey")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -909,14 +898,30 @@ namespace api.Migrations
                         .HasColumnType("tinyint(1)")
                         .HasDefaultValue(true);
 
+                    b.Property<int>("MinOrderQuantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(10);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("varchar(300)");
 
+                    b.Property<decimal?>("OriginalPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("PriceNote")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasDefaultValue("Giá sản phẩm có thể thay đổi theo chất liệu, số lượng và kỹ thuật in.");
 
                     b.Property<int>("ReviewCount")
                         .ValueGeneratedOnAdd()
@@ -972,6 +977,10 @@ namespace api.Migrations
                     b.ToTable("Products", t =>
                         {
                             t.HasCheckConstraint("CK_Product_AverageRating", "`AverageRating` >= 0 AND `AverageRating` <= 5");
+
+                            t.HasCheckConstraint("CK_Product_BasePrice", "`BasePrice` >= 0");
+
+                            t.HasCheckConstraint("CK_Product_MinOrderQuantity", "`MinOrderQuantity` >= 1");
 
                             t.HasCheckConstraint("CK_Product_Price", "`Price` >= 0");
 
@@ -1084,6 +1093,128 @@ namespace api.Migrations
                             t.HasCheckConstraint("CK_Variant_Price", "`Price` >= 0");
 
                             t.HasCheckConstraint("CK_Variant_Stock", "`Stock` >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("api.models.entities.QuoteRequest", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("AssignedAdminId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("ColorSelection")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime?>("ExpectedDeliveryDate")
+                        .HasColumnType("datetime");
+
+                    b.Property<string>("InternalNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("LogoFileUrlsJson")
+                        .HasColumnType("json");
+
+                    b.Property<string>("Material")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("OrganizationName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("PrintTechnique")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProductId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("QuoteCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTime?>("QuotedAt")
+                        .HasColumnType("datetime");
+
+                    b.Property<string>("QuotedNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<decimal?>("QuotedPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("SizeBreakdownJson")
+                        .HasColumnType("json");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("IX_QuoteRequests_ProductId");
+
+                    b.HasIndex("QuoteCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_QuoteRequests_QuoteCode");
+
+                    b.HasIndex("AssignedAdminId", "Status")
+                        .HasDatabaseName("IX_QuoteRequests_AssignedAdminId_Status");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("IX_QuoteRequests_Status_CreatedAt");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("IX_QuoteRequests_UserId_CreatedAt");
+
+                    b.ToTable("QuoteRequests", t =>
+                        {
+                            t.HasCheckConstraint("CK_QuoteRequest_Quantity", "`Quantity` > 0");
+
+                            t.HasCheckConstraint("CK_QuoteRequest_QuotedPrice", "`QuotedPrice` IS NULL OR `QuotedPrice` > 0");
                         });
                 });
 
@@ -1314,6 +1445,52 @@ namespace api.Migrations
                     b.ToTable("ShippingTrackingEvents");
                 });
 
+            modelBuilder.Entity("api.models.entities.ShopContact", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Hotline")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("MessengerLink")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime");
+
+                    b.Property<string>("WorkingHours")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ZaloOAId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("ZaloPhone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ShopContacts");
+                });
+
             modelBuilder.Entity("api.models.entities.SupportTicket", b =>
                 {
                     b.Property<string>("Id")
@@ -1347,6 +1524,14 @@ namespace api.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(0);
 
+                    b.Property<string>("ProductId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("QuoteRequestId")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -1369,6 +1554,10 @@ namespace api.Migrations
                     b.HasIndex("CustomerId");
 
                     b.HasIndex("Priority");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("QuoteRequestId");
 
                     b.HasIndex("AssignedToId", "Status");
 
@@ -1566,43 +1755,6 @@ namespace api.Migrations
                     b.Navigation("Merchant");
                 });
 
-            modelBuilder.Entity("api.models.entities.Cart", b =>
-                {
-                    b.HasOne("api.models.entities.User", "User")
-                        .WithOne("Cart")
-                        .HasForeignKey("api.models.entities.Cart", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("api.models.entities.CartItem", b =>
-                {
-                    b.HasOne("api.models.entities.Cart", "Cart")
-                        .WithMany("Items")
-                        .HasForeignKey("CartId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("api.models.entities.Product", "Product")
-                        .WithMany("CartItems")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("api.models.entities.ProductVariant", "ProductVariant")
-                        .WithMany("CartItems")
-                        .HasForeignKey("ProductVariantId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Cart");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ProductVariant");
-                });
-
             modelBuilder.Entity("api.models.entities.Category", b =>
                 {
                     b.HasOne("api.models.entities.Category", "Parent")
@@ -1632,6 +1784,23 @@ namespace api.Migrations
                     b.Navigation("Sender");
                 });
 
+            modelBuilder.Entity("api.models.entities.ChatRoom", b =>
+                {
+                    b.HasOne("api.models.entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("api.models.entities.QuoteRequest", "QuoteRequest")
+                        .WithMany()
+                        .HasForeignKey("QuoteRequestId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Product");
+
+                    b.Navigation("QuoteRequest");
+                });
+
             modelBuilder.Entity("api.models.entities.Notification", b =>
                 {
                     b.HasOne("api.models.entities.User", "User")
@@ -1645,6 +1814,11 @@ namespace api.Migrations
 
             modelBuilder.Entity("api.models.entities.Order", b =>
                 {
+                    b.HasOne("api.models.entities.QuoteRequest", "QuoteRequest")
+                        .WithMany()
+                        .HasForeignKey("QuoteRequestId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("api.models.entities.Address", "ShippingAddress")
                         .WithMany()
                         .HasForeignKey("ShippingAddressId")
@@ -1653,8 +1827,9 @@ namespace api.Migrations
                     b.HasOne("api.models.entities.User", "User")
                         .WithMany("Orders")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("QuoteRequest");
 
                     b.Navigation("ShippingAddress");
 
@@ -1672,8 +1847,7 @@ namespace api.Migrations
                     b.HasOne("api.models.entities.Product", "Product")
                         .WithMany("OrderItems")
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Order");
 
@@ -1753,6 +1927,30 @@ namespace api.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("api.models.entities.QuoteRequest", b =>
+                {
+                    b.HasOne("api.models.entities.User", "AssignedAdmin")
+                        .WithMany()
+                        .HasForeignKey("AssignedAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("api.models.entities.Product", "Product")
+                        .WithMany("QuoteRequests")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("api.models.entities.User", "User")
+                        .WithMany("QuoteRequests")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AssignedAdmin");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("api.models.entities.RefreshToken", b =>
                 {
                     b.HasOne("api.models.entities.User", "User")
@@ -1824,11 +2022,25 @@ namespace api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("api.models.entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("api.models.entities.QuoteRequest", "QuoteRequest")
+                        .WithMany()
+                        .HasForeignKey("QuoteRequestId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("AssignedTo");
 
                     b.Navigation("ChatRoom");
 
                     b.Navigation("Customer");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("QuoteRequest");
                 });
 
             modelBuilder.Entity("api.models.entities.User", b =>
@@ -1876,11 +2088,6 @@ namespace api.Migrations
                     b.Navigation("Products");
                 });
 
-            modelBuilder.Entity("api.models.entities.Cart", b =>
-                {
-                    b.Navigation("Items");
-                });
-
             modelBuilder.Entity("api.models.entities.Category", b =>
                 {
                     b.Navigation("Children");
@@ -1914,22 +2121,17 @@ namespace api.Migrations
 
             modelBuilder.Entity("api.models.entities.Product", b =>
                 {
-                    b.Navigation("CartItems");
-
                     b.Navigation("OrderItems");
 
                     b.Navigation("ProductCategories");
 
                     b.Navigation("ProductVariants");
 
+                    b.Navigation("QuoteRequests");
+
                     b.Navigation("Reviews");
 
                     b.Navigation("Wishlists");
-                });
-
-            modelBuilder.Entity("api.models.entities.ProductVariant", b =>
-                {
-                    b.Navigation("CartItems");
                 });
 
             modelBuilder.Entity("api.models.entities.ShippingDetail", b =>
@@ -1941,9 +2143,6 @@ namespace api.Migrations
                 {
                     b.Navigation("Addresses");
 
-                    b.Navigation("Cart")
-                        .IsRequired();
-
                     b.Navigation("Connections");
 
                     b.Navigation("Notifications");
@@ -1951,6 +2150,8 @@ namespace api.Migrations
                     b.Navigation("Orders");
 
                     b.Navigation("PasswordResetOtps");
+
+                    b.Navigation("QuoteRequests");
 
                     b.Navigation("RefreshTokens");
 

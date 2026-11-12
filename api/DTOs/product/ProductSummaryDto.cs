@@ -8,6 +8,10 @@ namespace api.DTOs.product
         public string Slug { get; set; } = string.Empty;
         public string? ImageUrl { get; set; }
         public decimal Price { get; set; }
+        public decimal BasePrice { get; set; }
+        public decimal? OriginalPrice { get; set; }
+        public int? DiscountPercent { get; set; }
+        public int MinOrderQuantity { get; set; } = 10;
 
         public decimal? MinVariantPrice { get; set; }
 

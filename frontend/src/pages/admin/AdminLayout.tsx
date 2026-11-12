@@ -8,10 +8,10 @@ import { getInitials } from "./adminShared";
 const navItems = [
   { to: "/admin", end: true, label: "Tổng quan", icon: "mdi:view-dashboard-outline" },
   { to: "/admin/users", label: "Nhân sự", icon: "mdi:account-group-outline" },
+  { to: "/admin/quotes", label: "Báo giá (RFQ)", icon: "mdi:file-document-edit-outline" },
   { to: "/admin/orders", label: "Đơn hàng", icon: "mdi:clipboard-text-outline" },
   { to: "/admin/chat", label: "Hỗ trợ trực tuyến", icon: "mdi:chat-processing-outline" },
   { to: "/admin/products", label: "Sản phẩm", icon: "mdi:cube-outline" },
-  { to: "/admin/inventory", label: "Tồn kho", icon: "mdi:archive-outline" },
   { to: "/admin/media", label: "Thư viện ảnh", icon: "mdi:image-outline" },
   { to: "/admin/settings", label: "Cài đặt", icon: "mdi:cog-outline" },
 ];

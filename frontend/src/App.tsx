@@ -10,6 +10,7 @@ import NotificationRealtimeBridge from "./components/notification/NotificationRe
 
 const Footer = lazy(() => import("./components/layout/Footer"));
 const SupportChatWidget = lazy(() => import("./components/chat/SupportChatWidget"));
+const FloatingContactBar = lazy(() => import("./components/common/FloatingContactBar"));
 const SignIn = lazy(() => import("./pages/account/SignIn"));
 const SignUp = lazy(() => import("./pages/account/SignUp"));
 const ForgotPassword = lazy(() => import("./pages/account/ForgotPassword"));
@@ -21,22 +22,18 @@ const AboutUs = lazy(() => import("./pages/AboutUs"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ShopPage = lazy(() => import("./pages/ShopPage"));
 const ProductDetailPage = lazy(() => import("./pages/ShopPageDetail"));
-const CartPage = lazy(() => import("./pages/CartPage"));
-const VnPayReturnPage = lazy(() => import("./pages/VnPayReturn"));
-const OrderDetailPage = lazy(() => import("./pages/OrderDetailPage"));
-const MyOrdersPage = lazy(() => import("./pages/OrderPage"));
-const MyCancellationsPage = lazy(() => import("./pages/MyCancellationsPage"));
+const MyQuotesPage = lazy(() => import("./pages/MyQuotesPage"));
+const QuoteDetailPage = lazy(() => import("./pages/QuoteDetailPage"));
 const MyReviewsPage = lazy(() => import("./pages/MyReviewsPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
-const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const WishlistPage = lazy(() => import("./pages/WishlistPage"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage"));
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
+const AdminQuotesPage = lazy(() => import("./pages/admin/AdminQuotesPage"));
 const AdminOrdersPage = lazy(() => import("./pages/admin/AdminOrdersPage"));
 const AdminChatPage = lazy(() => import("./pages/admin/AdminChatPage"));
 const AdminProductsPage = lazy(() => import("./pages/admin/AdminProductsPage"));
-const AdminInventoryPage = lazy(() => import("./pages/admin/AdminInventoryPage"));
 const AdminMediaPage = lazy(() => import("./pages/admin/BulkUpload"));
 const AdminSettingsPage = lazy(() => import("./pages/admin/AdminSettingsPage"));
 const AdminAccessDenied = lazy(() => import("./pages/admin/AdminAccessDenied"));
@@ -51,7 +48,7 @@ function titleForPath(pathname: string) {
   if (path === "/") return APP_NAME;
   if (path === "/shop") return `Sản phẩm | ${APP_NAME}`;
   if (/^\/shop\/[^/]+$/.test(path)) return `Chi tiết sản phẩm | ${APP_NAME}`;
-  if (path === "/cart") return `Giỏ hàng | ${APP_NAME}`;
+  if (path === "/quotes" || /^\/quotes\/[^/]+$/.test(path)) return `Yêu cầu báo giá | ${APP_NAME}`;
   if (path === "/wishlist") return `Yêu thích | ${APP_NAME}`;
   if (path === "/signin") return `Đăng nhập | ${APP_NAME}`;
   if (path === "/signup") return `Đăng ký | ${APP_NAME}`;
@@ -61,23 +58,18 @@ function titleForPath(pathname: string) {
   if (path === "/change-password") return `Đổi mật khẩu | ${APP_NAME}`;
   if (path === "/contact-us") return `Liên hệ | ${APP_NAME}`;
   if (path === "/about-us") return `Về ${APP_NAME}`;
-  if (path === "/checkout") return `Thanh toán | ${APP_NAME}`;
-  if (path === "/orders") return `Đơn hàng của tôi | ${APP_NAME}`;
-  if (/^\/orders\/[^/]+$/.test(path)) return `Chi tiết đơn hàng | ${APP_NAME}`;
-  if (path === "/cancellations") return `Đơn đã hủy | ${APP_NAME}`;
   if (path === "/reviews") return `Đánh giá của tôi | ${APP_NAME}`;
   if (path === "/notifications") return `Thông báo | ${APP_NAME}`;
   if (path === "/support-chat") return `Hỗ trợ | ${APP_NAME}`;
-  if (path === "/payment/vnpay-return") return `Kết quả thanh toán | ${APP_NAME}`;
   if (path === "/403") return `Không có quyền truy cập | ${APP_NAME}`;
 
   if (path === "/admin") return `Quản trị | ${APP_NAME}`;
   if (path === "/admin/users") return `Quản lý người dùng | ${APP_NAME}`;
+  if (path === "/admin/quotes") return `Quản lý báo giá | ${APP_NAME}`;
   if (path === "/admin/orders") return `Quản lý đơn hàng | ${APP_NAME}`;
   if (path === "/admin/notifications") return `Thông báo quản trị | ${APP_NAME}`;
   if (path === "/admin/chat") return `Chat quản trị | ${APP_NAME}`;
   if (path === "/admin/products") return `Quản lý sản phẩm | ${APP_NAME}`;
-  if (path === "/admin/inventory") return `Tồn kho | ${APP_NAME}`;
   if (path === "/admin/media") return `Thư viện ảnh | ${APP_NAME}`;
   if (path === "/admin/settings") return `Cài đặt | ${APP_NAME}`;
 
@@ -93,6 +85,9 @@ function StorefrontLayout() {
         <Outlet />
       </main>
       <LazyFooter />
+      <Suspense fallback={null}>
+        <FloatingContactBar />
+      </Suspense>
       <LazySupportChatWidget />
     </>
   );
@@ -102,6 +97,9 @@ function LazySupportChatWidget() {
   const location = useLocation();
   const [initialPanel, setInitialPanel] = useState<ChatPanel | null>(null);
   const [widgetVersion, setWidgetVersion] = useState(0);
+  const searchParams = new URLSearchParams(location.search);
+  const productId = searchParams.get("productId") ?? undefined;
+  const quoteId = searchParams.get("quoteId") ?? undefined;
 
   useEffect(() => {
     const requestedPanel = new URLSearchParams(location.search).get("chat");
@@ -114,7 +112,12 @@ function LazySupportChatWidget() {
   if (initialPanel) {
     return (
       <Suspense fallback={<ChatLaunchButtons disabled />}>
-        <SupportChatWidget key={widgetVersion} initialPanel={initialPanel} />
+        <SupportChatWidget
+          key={widgetVersion}
+          initialPanel={initialPanel}
+          productId={productId}
+          quoteRequestId={quoteId}
+        />
       </Suspense>
     );
   }
@@ -245,7 +248,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/shop" element={<SuspendedRoute><ShopPage /></SuspendedRoute>} />
           <Route path="/shop/:slug" element={<SuspendedRoute><ProductDetailPage /></SuspendedRoute>} />
-          <Route path="/cart" element={<SuspendedRoute><CartPage /></SuspendedRoute>} />
+          <Route path="/cart" element={<Navigate to="/shop" replace />} />
           <Route path="/wishlist" element={<SuspendedRoute><WishlistPage /></SuspendedRoute>} />
           <Route path="/signin" element={<SuspendedRoute><SignIn /></SuspendedRoute>} />
           <Route path="/signup" element={<SuspendedRoute><SignUp /></SuspendedRoute>} />
@@ -262,17 +265,19 @@ function App() {
           />
           <Route path="/contact-us" element={<SuspendedRoute><ContactUs /></SuspendedRoute>} />
           <Route path="/about-us" element={<SuspendedRoute><AboutUs /></SuspendedRoute>} />
-          <Route path="/checkout" element={<SuspendedRoute><CheckoutPage /></SuspendedRoute>} />
-          <Route path="/orders" element={<SuspendedRoute><MyOrdersPage /></SuspendedRoute>} />
-          <Route path="/orders/:id" element={<SuspendedRoute><OrderDetailPage /></SuspendedRoute>} />
+          <Route path="/quotes" element={<SuspendedRoute><MyQuotesPage /></SuspendedRoute>} />
           <Route
-            path="/cancellations"
+            path="/quotes/:id"
             element={
               <ProtectedRoute>
-                <SuspendedRoute><MyCancellationsPage /></SuspendedRoute>
+                <SuspendedRoute><QuoteDetailPage /></SuspendedRoute>
               </ProtectedRoute>
             }
           />
+          <Route path="/checkout" element={<Navigate to="/shop" replace />} />
+          <Route path="/orders" element={<Navigate to="/quotes" replace />} />
+          <Route path="/orders/:id" element={<Navigate to="/quotes" replace />} />
+          <Route path="/cancellations" element={<Navigate to="/quotes" replace />} />
           <Route
             path="/reviews"
             element={
@@ -290,7 +295,7 @@ function App() {
             }
           />
           <Route path="/support-chat" element={<Navigate to="/?chat=support" replace />} />
-          <Route path="/payment/vnpay-return" element={<SuspendedRoute><VnPayReturnPage /></SuspendedRoute>} />
+          <Route path="/payment/vnpay-return" element={<Navigate to="/shop" replace />} />
           {!isAdminRoute ? <Route path="*" element={<SuspendedRoute><NotFound /></SuspendedRoute>} /> : null}
         </Route>
 
@@ -317,6 +322,14 @@ function App() {
             element={
               <Suspense fallback={<AdminPageFallback />}>
                 <AdminUsersPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="quotes"
+            element={
+              <Suspense fallback={<AdminPageFallback />}>
+                <AdminQuotesPage />
               </Suspense>
             }
           />
@@ -354,11 +367,7 @@ function App() {
           />
           <Route
             path="inventory"
-            element={
-              <Suspense fallback={<AdminPageFallback />}>
-                <AdminInventoryPage />
-              </Suspense>
-            }
+            element={<Navigate to="/admin/products" replace />}
           />
           <Route
             path="media"

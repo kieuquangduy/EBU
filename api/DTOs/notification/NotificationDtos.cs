@@ -11,6 +11,7 @@ namespace api.DTOs.notification
         public string Message { get; set; } = string.Empty;
         public string? Link { get; set; }
         public string? OrderId { get; set; }
+        public string? QuoteRequestId { get; set; }
         public bool IsRead { get; set; }
         public DateTime? ReadAt { get; set; }
         public DateTime Created { get; set; }

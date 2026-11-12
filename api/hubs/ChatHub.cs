@@ -64,6 +64,7 @@ namespace api.hubs
             if (isAdmin)
             {
                 await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
+                await BroadcastAdminPresenceAsync();
             }
 
             await base.OnConnectedAsync();
@@ -72,6 +73,7 @@ namespace api.hubs
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = IsAdmin();
             var connection = await _context.UserConnections
                 .FirstOrDefaultAsync(c => c.ConnectionId == Context.ConnectionId);
 
@@ -92,6 +94,11 @@ namespace api.hubs
                         user.IsOnline = false;
                         user.LastSeen = DateTime.UtcNow;
                         await _context.SaveChangesAsync();
+                    }
+
+                    if (isAdmin)
+                    {
+                        await BroadcastAdminPresenceAsync();
                     }
                 }
             }
@@ -135,7 +142,8 @@ namespace api.hubs
                     IsAdmin(),
                     dto.Message,
                     dto.MessageType,
-                    Context.ConnectionAborted);
+                    Context.ConnectionAborted,
+                    dto.Attachments);
 
                 await Clients.Group(RoomGroup(dto.ChatRoomId)).SendAsync("ReceiveMessage", message, Context.ConnectionAborted);
                 await Clients.Group(AdminGroup).SendAsync("RoomUpdated", dto.ChatRoomId, Context.ConnectionAborted);
@@ -215,6 +223,19 @@ namespace api.hubs
         private const string AdminGroup = "admins";
         private static string UserGroup(string userId) => $"user:{userId}";
         private static string RoomGroup(string roomId) => $"room:{roomId}";
+
+        private async Task BroadcastAdminPresenceAsync()
+        {
+            var onlineAdminCount = await _context.Users
+                .AsNoTracking()
+                .CountAsync(u => u.Role == api.models.enums.Role.Admin && u.IsOnline && u.Id != "hau-ai-assistant");
+
+            await Clients.All.SendAsync("AdminPresenceChanged", new
+            {
+                isAdminOnline = onlineAdminCount > 0,
+                onlineAdminCount
+            });
+        }
 
         private async Task ValidateSendMessageAsync(SendChatMessageDto dto)
         {

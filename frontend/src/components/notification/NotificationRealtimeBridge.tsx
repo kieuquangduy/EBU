@@ -24,12 +24,15 @@ export default function NotificationRealtimeBridge() {
 
     connection.on("ReceiveNotification", (notification: NotificationDto) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.mineRoot });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.mineRoot });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
 
       if (notification.orderId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(notification.orderId) });
         queryClient.invalidateQueries({ queryKey: queryKeys.admin.order(notification.orderId) });
+      }
+      if (notification.quoteRequestId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(notification.quoteRequestId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.quote(notification.quoteRequestId) });
       }
 
       showToast(`${notification.title}: ${notification.message}`, "info", 5200);

@@ -42,6 +42,13 @@ export interface ProductSummaryDto {
   slug: string;
   imageUrl: string | null;
   price: number;
+  basePrice?: number;
+  originalPrice?: number | null;
+  discountPercent?: number | null;
+  priceNote?: string | null;
+  availableMaterials?: string[];
+  availablePrintTechniques?: string[];
+  minOrderQuantity?: number;
   minVariantPrice: number | null; // null = chưa có variant
   totalStock: number | null;
   isActive: boolean;
@@ -65,6 +72,13 @@ export interface ProductDto {
   slug: string;
   description: string;
   price: number;
+  basePrice?: number;
+  originalPrice?: number | null;
+  discountPercent?: number | null;
+  priceNote?: string | null;
+  availableMaterials?: string[];
+  availablePrintTechniques?: string[];
+  minOrderQuantity?: number;
   taxable: boolean;
   isActive: boolean;
   imageUrl: string | null;
@@ -127,6 +141,13 @@ export interface CreateProductDto {
   stock?: number;
   averageRating?: number;
   reviewCount?: number;
+  basePrice?: number;
+  originalPrice?: number | null;
+  discountPercent?: number | null;
+  priceNote?: string | null;
+  availableMaterials?: string[];
+  availablePrintTechniques?: string[];
+  minOrderQuantity?: number;
 }
  
 export interface UpdateProductDto {
@@ -146,53 +167,14 @@ export interface UpdateProductDto {
   stock?: number;
   averageRating?: number;
   reviewCount?: number;
+  basePrice?: number;
+  originalPrice?: number | null;
+  discountPercent?: number | null;
+  priceNote?: string | null;
+  availableMaterials?: string[];
+  availablePrintTechniques?: string[];
+  minOrderQuantity?: number;
 }
-// ── Cart ──────────────────────────────────────────────────────────────────────
- 
-export interface CartItem {
-  cartItemId?: string;
-  product: ProductSummaryDto;
-  qty: number;
-  variantId?: string;
-  variantSku?: string;
-  unitPrice: number;
-  availableStock?: number;
-  variantSize?: string;
-  variantColor?: string;
-}
-
-export interface CartState {
-  items: CartItem[];
-  totalQty: number;
-  subtotal: number;
-}
-
-export interface CartItemDto {
-  id: string;
-  productId: string;
-  productName: string;
-  productSlug: string;
-  productImageUrl?: string | null;
-  variantImageUrl?: string | null;
-  unitPrice: number;
-  quantity: number;
-  availableStock: number;
-  productVariantId?: string;
-  variantSku?: string;
-  variantSize?: string;
-  variantColor?: string;
-  created: string;
-}
-
-export interface CartDto {
-  id: string;
-  userId: string;
-  items: CartItemDto[];
-  totalItems: number;
-  subtotal: number;
-  created: string;
-}
- 
 // ── Toast ─────────────────────────────────────────────────────────────────────
  
 export type ToastType = "success" | "error" | "info" | "warning";

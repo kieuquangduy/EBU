@@ -2,8 +2,8 @@ import { QueryClient, dehydrate, hydrate } from "@tanstack/react-query";
 import { cachePolicy } from "./cachePolicy";
 import type { ProductQueryDto } from "../@types/product.type";
 
-const PERSISTED_QUERY_CACHE_KEY = "haushop_query_cache_v2";
-const LEGACY_PERSISTED_QUERY_CACHE_KEYS = ["haushop_query_cache_v1"];
+const PERSISTED_QUERY_CACHE_KEY = "haushop_query_cache_v3";
+const LEGACY_PERSISTED_QUERY_CACHE_KEYS = ["haushop_query_cache_v1", "haushop_query_cache_v2"];
 const PERSISTED_QUERY_MAX_AGE = 30 * 60 * 1000;
 const PERSISTED_QUERY_SCOPES = new Set(["products", "categories"]);
 
@@ -13,8 +13,8 @@ export const queryClient = new QueryClient({
       retry: 1,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      staleTime: cachePolicy.order.staleTime,
-      gcTime: cachePolicy.order.gcTime,
+      staleTime: cachePolicy.quotes.staleTime,
+      gcTime: cachePolicy.quotes.gcTime,
     },
     mutations: {
       retry: 0,

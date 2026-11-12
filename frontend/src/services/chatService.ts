@@ -1,13 +1,24 @@
-import type { ChatMessageDto, ChatRoomDto } from "../@types/chat.type";
+import type {
+  ChatMessageDto,
+  ChatRoomDto,
+  StartSupportChatDto,
+  SupportAvailabilityDto,
+} from "../@types/chat.type";
 import { http } from "../lib/http";
 
 export const chatService = {
-  async startSupportChat(subject?: string): Promise<ChatRoomDto> {
-    return http.post<ChatRoomDto>("/chat/support/start", { subject });
+  async startSupportChat(input?: string | StartSupportChatDto): Promise<ChatRoomDto> {
+    const payload: StartSupportChatDto =
+      typeof input === "string" || input === undefined ? { subject: input } : input;
+    return http.post<ChatRoomDto>("/chat/support/start", payload);
   },
 
   async startAiChat(): Promise<ChatRoomDto> {
     return http.post<ChatRoomDto>("/chat/ai/start");
+  },
+
+  async getSupportAvailability(signal?: AbortSignal): Promise<SupportAvailabilityDto> {
+    return http.get<SupportAvailabilityDto>("/chat/support/availability", { signal });
   },
 
   async getRooms(): Promise<ChatRoomDto[]> {

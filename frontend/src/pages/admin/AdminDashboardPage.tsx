@@ -1,5 +1,6 @@
 import { Icon } from "@iconify/react";
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Area,
   AreaChart,
@@ -18,13 +19,15 @@ import {
   YAxis,
 } from "recharts";
 import type {
-  LowStockProductDto,
+  AdminRecentQuoteDto,
   OrderStatusAnalyticsDto,
   RecentOrderDto,
   RevenueTrendPointDto,
   TopSellingProductDto,
 } from "../../@types/admin.type";
+import type { QuoteStatus } from "../../@types/quoteRequest.type";
 import { useAdminDashboard } from "../../hooks/useAdmin";
+import { QUOTE_STATUS_META, formatQuoteStatus } from "../../lib/quoteStatus";
 import { formatPrice } from "../../utils/formatPrice";
 import {
   AdminBadge,
@@ -146,7 +149,7 @@ export default function AdminDashboardPage() {
   const latestTrendPoint = trendData.at(-1);
   const activeGrowth = latestTrendPoint?.growthPercent ?? dashboard?.revenueGrowthPercent ?? 0;
   const topProducts = dashboard?.topSellingProducts ?? [];
-  const lowStockProducts = dashboard?.lowStockProducts ?? [];
+  const recentQuotes = dashboard?.recentQuoteRequests ?? [];
   const recentOrders = dashboard?.recentOrders ?? [];
   const hasConversionRate = typeof dashboard?.conversionRate === "number";
 
@@ -282,17 +285,52 @@ export default function AdminDashboardPage() {
         <TopProductsChart products={topProducts} />
       </AnalyticsCard>
 
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Yêu cầu báo giá (RFQ)"
+          value={numberFormatter.format(dashboard.totalQuotes ?? 0)}
+          description={`${dashboard.pendingQuotes ?? 0} chờ xử lý · ${dashboard.quotedCount ?? 0} đã báo giá`}
+          tone="primary"
+        />
+        <KpiCard
+          label="Đơn chốt từ báo giá"
+          value={numberFormatter.format((dashboard.acceptedQuotes ?? 0) + (dashboard.inProductionQuotes ?? 0))}
+          description={`${dashboard.completedQuotes ?? 0} đã hoàn tất`}
+          tone="success"
+        />
+        <KpiCard
+          label="Tỷ lệ chốt báo giá"
+          value={`${dashboard.quoteConversionRate ?? 0}%`}
+          description="Tỷ lệ RFQ chuyển thành đơn"
+          tone="warning"
+        />
+        <KpiCard
+          label="Đã liên hệ tư vấn"
+          value={numberFormatter.format(dashboard.contactedQuotes ?? 0)}
+          description="Đang trao đổi mockup / giá"
+          tone="primary"
+        />
+      </div>
+
       <div className="grid gap-5 xl:grid-cols-2">
         <AnalyticsCard
-          title="Sản phẩm sắp hết hàng"
-          subtitle="Ưu tiên nhập hàng trước khi mất doanh thu."
+          title="Yêu cầu báo giá gần đây"
+          subtitle="Theo dõi RFQ mới từ khách để báo giá và chốt đơn kịp thời."
+          action={
+            <Link
+              to="/admin/quotes"
+              className="text-xs font-semibold text-blue-600 hover:underline"
+            >
+              Xem tất cả →
+            </Link>
+          }
         >
-          <LowStockList products={lowStockProducts} />
+          <RecentQuotesTable quotes={recentQuotes} />
         </AnalyticsCard>
 
         <AnalyticsCard
           title="Đơn hàng gần đây"
-          subtitle="Giám sát vận hành và phát hiện trạng thái cần xử lý."
+          subtitle="Giám sát đơn từ RFQ / Zalo để đối soát giá tiền & doanh thu."
         >
           <RecentOrdersTable orders={recentOrders} />
         </AnalyticsCard>
@@ -696,71 +734,51 @@ function ProductAxisTick({ x = 0, y = 0, payload, products }: ProductAxisTickPro
   );
 }
 
-function LowStockList({ products }: { products: LowStockProductDto[] }) {
-  const { widths, startResize } = useResizableColumns([56, 130, 260, 110]);
-
-  if (!products.length) {
+function RecentQuotesTable({ quotes }: { quotes: AdminRecentQuoteDto[] }) {
+  if (!quotes.length) {
     return (
       <AdminEmptyState
-        icon="mdi:package-check"
-        title="Tồn kho ổn định"
-        description="Không có sản phẩm nào dưới ngưỡng cảnh báo."
+        icon="mdi:file-document-outline"
+        title="Chưa có yêu cầu báo giá gần đây"
+        description="Khi khách gửi yêu cầu báo giá, danh sách mới nhất sẽ hiển thị tại đây."
       />
     );
   }
 
   return (
     <div className="min-w-0 overflow-x-auto">
-      <table className="w-full table-fixed border-collapse font-inter text-sm font-normal">
-        <colgroup>
-          {widths.map((w, i) => (
-            <col key={i} style={{ width: w }} />
-          ))}
-        </colgroup>
+      <table className="w-full border-collapse font-inter text-sm font-normal">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/70 text-xs uppercase tracking-[0.1em] text-slate-500">
-            <ResizableTh align="center" onResizeStart={startResize(0)}>
-              STT
-            </ResizableTh>
-            <ResizableTh onResizeStart={startResize(1)}>Mã SP</ResizableTh>
-            <ResizableTh onResizeStart={startResize(2)}>Tên sản phẩm</ResizableTh>
-            <ResizableTh align="center" showDivider={false}>
-              Tồn kho
-            </ResizableTh>
+            <th className="px-3 py-2.5 text-left font-medium">Mã RFQ</th>
+            <th className="px-3 py-2.5 text-left font-medium">Khách hàng</th>
+            <th className="px-3 py-2.5 text-center font-medium">SL</th>
+            <th className="px-3 py-2.5 text-right font-medium">Giá báo</th>
+            <th className="px-3 py-2.5 text-center font-medium">Trạng thái</th>
           </tr>
         </thead>
         <tbody>
-          {products.slice(0, 8).map((product, index) => {
-            const isOut = product.stock <= 0;
+          {quotes.map((item) => {
+            const meta = QUOTE_STATUS_META[item.status as QuoteStatus];
             return (
-              <tr
-                key={product.id}
-                className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50"
-              >
-                <td className="whitespace-nowrap px-3 py-3 text-center font-normal text-slate-500">
-                  {index + 1}
+              <tr key={item.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50">
+                <td className="px-3 py-3 font-mono text-xs font-bold text-blue-700">
+                  {item.quoteCode}
                 </td>
-                <td
-                  className="truncate whitespace-nowrap px-3 py-3 font-normal text-slate-600"
-                  title={product.sku}
-                >
-                  {product.sku}
+                <td className="px-3 py-3">
+                  <p className="truncate font-medium text-slate-900">{item.customerName}</p>
+                  <p className="text-xs text-slate-500">{item.phone}</p>
                 </td>
-                <td
-                  className="truncate whitespace-nowrap px-3 py-3 font-medium text-slate-800"
-                  title={product.name}
-                >
-                  {product.name}
+                <td className="px-3 py-3 text-center font-semibold text-slate-700">
+                  {item.quantity}
                 </td>
-                <td className="whitespace-nowrap px-3 py-3 text-center">
-                  <span
-                    className={[
-                      "inline-block whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium",
-                      isOut ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700",
-                    ].join(" ")}
-                  >
-                    {product.stock} cái
-                  </span>
+                <td className="px-3 py-3 text-right font-medium text-slate-900">
+                  {item.quotedPrice != null ? formatPrice(item.quotedPrice) : "--"}
+                </td>
+                <td className="px-3 py-3 text-center">
+                  <AdminBadge className={meta?.badgeClass ?? "bg-slate-100 text-slate-700"}>
+                    {formatQuoteStatus(item.status as QuoteStatus)}
+                  </AdminBadge>
                 </td>
               </tr>
             );

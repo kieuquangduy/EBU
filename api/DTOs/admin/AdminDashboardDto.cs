@@ -35,6 +35,17 @@ namespace api.DTOs.admin
         public List<OrderStatusAnalyticsDto> OrderStatusAnalytics { get; set; } = new();
         public List<TopSellingProductDto> TopSellingProducts { get; set; } = new();
 
+        public int TotalQuotes { get; set; }
+        public int PendingQuotes { get; set; }
+        public int ContactedQuotes { get; set; }
+        public int QuotedCount { get; set; }
+        public int AcceptedQuotes { get; set; }
+        public int InProductionQuotes { get; set; }
+        public int CompletedQuotes { get; set; }
+        public decimal QuoteConversionRate { get; set; }
+        public Dictionary<string, int> QuotesByStatus { get; set; } = new();
+        public List<AdminRecentQuoteDto> RecentQuoteRequests { get; set; } = new();
+
     }
 
     public class RevenueTrendPointDto

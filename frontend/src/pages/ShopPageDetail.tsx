@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { Icon } from "@iconify/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import QuoteRequestModal from "../components/quote/QuoteRequestModal";
 import { useProductBySlug } from "../hooks/useProduct";
-import { useAddToCart } from "../hooks/useCart";
+import { useShopContact } from "../hooks/useShopContact";
 import { useToast } from "../context/toastContext";
 import { formatPrice } from "../utils/formatPrice";
 import type { ProductVariantSummaryDto } from "../@types/product.type";
@@ -14,35 +16,44 @@ import {
 } from "../services/reviewService";
 import { queryKeys } from "../lib/queryKeys";
 import { logger } from "../lib/logger";
-import { ROUTES } from "../lib/routes";
+import { openZaloProductConsult, resolveProductPricing } from "../lib/productRfq";
+import { ROUTES, routeTo } from "../lib/routes";
+
+const RFQ_HIGHLIGHTS = [
+  { icon: "lucide:shield-check", text: "Thiết kế miễn phí logo độc đáo, đẳng cấp" },
+  { icon: "lucide:sparkles", text: "Chất liệu cao cấp, giá tận xưởng" },
+  { icon: "lucide:palette", text: "Màu sắc đa dạng, nhiều lựa chọn màu sắc" },
+  { icon: "lucide:truck", text: "Giao hàng toàn quốc miễn phí" },
+] as const;
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { product, isLoading, isError, error } = useProductBySlug(slug);
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
-  const addToCart = useAddToCart();
+  const { data: shopContact } = useShopContact();
 
   const [selectedVariant, setSelectedVariant] =
     useState<ProductVariantSummaryDto | null>(null);
-  const [qty, setQty] = useState(1);
-  const [adding, setAdding] = useState(false);
-  const [addedToCart, setAddedToCart] = useState(false);
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
 
   useEffect(() => {
     if (!product) return;
 
     const activeVariants = product.variants.filter((v) => v.isActive);
-
-    if (activeVariants.length === 1) {
-      setSelectedVariant(activeVariants[0]);
-    } else {
-      setSelectedVariant(null);
-    }
-
-    setQty(1);
+    setSelectedVariant(activeVariants.length === 1 ? activeVariants[0] : null);
   }, [product]);
+
+  useEffect(() => {
+    if (searchParams.get("rfq") === "1" && product) {
+      setQuoteModalOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("rfq");
+      setSearchParams(next, { replace: true });
+    }
+  }, [product, searchParams, setSearchParams]);
 
   if (isLoading) {
     return (
@@ -79,55 +90,42 @@ export default function ProductDetailPage() {
 
   const activeVariants = product.variants.filter((v) => v.isActive);
   const hasVariants = activeVariants.length > 0;
-
   const currentVariant = selectedVariant ?? activeVariants[0] ?? null;
-  const currentPrice = currentVariant?.price ?? product.minVariantPrice ?? product.price;
-  const currentStock = currentVariant?.stock ?? 0;
-  const isOutOfStock = currentStock <= 0;
+  const { basePrice, originalPrice, discountPercent } = resolveProductPricing(
+    product,
+    selectedVariant?.price ?? null
+  );
+  const minOrderQty =
+    product.minOrderQuantity && product.minOrderQuantity > 1 ? product.minOrderQuantity : 1;
+  const priceNote =
+    product.priceNote?.trim() ||
+    "Giá sản phẩm có thể thay đổi theo chất liệu, số lượng và kỹ thuật in. Vui lòng liên hệ hoặc nhấn Nhận báo giá để được tư vấn và nhận giá chính thức.";
 
-  const mustChooseVariant = activeVariants.length > 1 && !selectedVariant;
+  const handleRequestQuote = () => {
+    setQuoteModalOpen(true);
+  };
 
-  const handleAddToCart = async () => {
-    if (!isAuthenticated) {
-      showToast("Vui lòng đăng nhập để thêm vào giỏ hàng", "warning");
-      navigate(ROUTES.SIGN_IN);
+  const handleZaloConsult = async () => {
+    const productUrl = `${window.location.origin}${routeTo.product(product.slug)}`;
+    const result = await openZaloProductConsult({
+      zaloPhone: shopContact?.zaloPhone,
+      productName: product.name,
+      productUrl,
+    });
+
+    if (!result.opened) {
+      showToast("Số Zalo đang cập nhật, bạn vui lòng Chat với shop để được tư vấn.", "info");
+      navigate("?chat=support", { replace: true });
       return;
     }
 
-    if (!currentVariant) {
-      showToast("Sản phẩm này chưa có phiên bản để thêm vào giỏ", "warning");
-      return;
-    }
-
-    if (mustChooseVariant) {
-      showToast("Vui lòng chọn phiên bản", "warning");
-      return;
-    }
-
-    if (isOutOfStock) return;
-
-    try {
-      setAdding(true);
-
-      await addToCart.mutateAsync({
-        productVariantId: currentVariant.id,
-        quantity: qty,
-      });
-
-      setAddedToCart(true);
-      showToast(`Đã thêm "${product.name}" vào giỏ!`, "success");
-      setTimeout(() => setAddedToCart(false), 2000);
-    } catch (err) {
-      logger.error("Add to cart failed", err);
-      showToast("Không thể thêm vào giỏ hàng", "error");
-    } finally {
-      setAdding(false);
+    if (result.copied) {
+      showToast("Đã sao chép tên sản phẩm — đang mở Zalo tư vấn", "info");
     }
   };
 
-  const handleBuyNow = async () => {
-    await handleAddToCart();
-    navigate(ROUTES.CART);
+  const handleChatWithShop = () => {
+    navigate(`?chat=support&productId=${encodeURIComponent(product.id)}`, { replace: true });
   };
 
   return (
@@ -216,65 +214,109 @@ export default function ProductDetailPage() {
               </div>
 
               <span className="text-sm text-lightText font-bodyFont">
-                ({product.averageRating.toFixed(1)})
+                {product.reviewCount > 0
+                  ? `${product.averageRating.toFixed(1)} (${product.reviewCount} đánh giá)`
+                  : "(Chưa có đánh giá)"}
               </span>
-              <span className="text-gray-300">|</span>
-
-              <span className="text-sm font-bodyFont">
-                {isOutOfStock ? (
-                  <span className="text-red-500 font-medium">Hết hàng</span>
-                ) : (
-                  <span className="text-success font-medium">
-                    Còn {currentStock} sản phẩm
+              {minOrderQty > 1 && (
+                <>
+                  <span className="text-gray-300">|</span>
+                  <span className="text-sm font-medium text-[#1d4ed8] font-bodyFont">
+                    Đặt tối thiểu {minOrderQty} áo
                   </span>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-baseline gap-3 mb-5">
+              <span className="text-base text-slate-600 font-bodyFont">Giá từ:</span>
+              {originalPrice && (
+                <span className="text-base text-lightText line-through font-bodyFont">
+                  {formatPrice(originalPrice)}
+                </span>
+              )}
+              <span className="font-titleFont text-3xl font-bold text-[#1d4ed8]">
+                {formatPrice(basePrice)}
+              </span>
+              {discountPercent && (
+                <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                  -{discountPercent}%
+                </span>
+              )}
+            </div>
+
+            <div className="mb-5 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+              {RFQ_HIGHLIGHTS.map((item) => (
+                <div key={item.text} className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[#1d4ed8]">
+                    <Icon icon={item.icon} width={16} />
+                  </span>
+                  <span className="font-bodyFont">{item.text}</span>
+                </div>
+              ))}
+            </div>
+
+            {(product.availableMaterials?.length || product.availablePrintTechniques?.length) ? (
+              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {product.availableMaterials && product.availableMaterials.length > 0 && (
+                  <div className="rounded-xl border border-gray-100 bg-slate-50/70 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                      Chất liệu hỗ trợ
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {product.availableMaterials.map((material) => (
+                        <span
+                          key={material}
+                          className="rounded-md bg-white border border-gray-200 px-2.5 py-1 text-xs font-medium text-primeColor"
+                        >
+                          {material}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </span>
-            </div>
 
-            <div className="flex items-baseline gap-3 mb-6 pb-6 border-b border-gray-100">
-              <span className="font-titleFont text-3xl font-bold text-red-500">
-                {formatPrice(currentPrice)}
-              </span>
-
-              {currentVariant && currentVariant.price < product.price && (
-                <span className="text-lg text-lightText line-through font-bodyFont">
-                  {formatPrice(product.price)}
-                </span>
-              )}
-
-              {product.taxable && (
-                <span className="text-xs text-lightText font-bodyFont">
-                  (đã bao gồm thuế)
-                </span>
-              )}
-            </div>
+                {product.availablePrintTechniques && product.availablePrintTechniques.length > 0 && (
+                  <div className="rounded-xl border border-gray-100 bg-slate-50/70 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                      Kỹ thuật in / thêu
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {product.availablePrintTechniques.map((tech) => (
+                        <span
+                          key={tech}
+                          className="rounded-md bg-white border border-gray-200 px-2.5 py-1 text-xs font-medium text-primeColor"
+                        >
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             {hasVariants && (
-              <div className="mb-6">
-                <p className="text-xs tracking-[2px] uppercase font-semibold mb-3 font-titleFont">
-                  Phiên bản
+              <div className="mb-5">
+                <p className="text-xs tracking-[1.5px] uppercase font-semibold mb-2.5 font-titleFont text-slate-600">
+                  Mẫu / Phiên bản tham khảo
                 </p>
-
                 <div className="flex flex-wrap gap-2">
                   {activeVariants.map((v) => (
                     <button
+                      type="button"
                       key={v.id}
-                      onClick={() => {
-                        setSelectedVariant(v);
-                        setQty(1);
-                      }}
-                      disabled={v.stock <= 0}
-                      className={`px-4 py-2 text-sm font-bodyFont border transition-all duration-200
-                        disabled:opacity-40 disabled:cursor-not-allowed
+                      onClick={() => setSelectedVariant(v)}
+                      className={`px-3.5 py-1.5 text-xs font-bodyFont border rounded-lg transition-all duration-200
                         ${
                           v.id === selectedVariant?.id ||
                           (activeVariants.length === 1 && v.id === currentVariant?.id)
-                            ? "border-red-500 text-red-500 bg-red-50"
-                            : "border-gray-200 hover:border-primeColor"
+                            ? "border-[#1d4ed8] text-[#1d4ed8] bg-blue-50 font-semibold"
+                            : "border-gray-200 hover:border-primeColor text-slate-700"
                         }`}
                     >
                       {v.sku}
-                      <span className="ml-1.5 text-xs text-lightText">
+                      <span className="ml-1.5 text-[11px] text-lightText">
                         {formatPrice(v.price)}
                       </span>
                     </button>
@@ -283,56 +325,48 @@ export default function ProductDetailPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-4 mb-7">
-              <p className="text-xs tracking-[2px] uppercase font-semibold font-titleFont">
-                Số lượng
+            <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-blue-200 bg-[#eff6ff] px-4 py-3 text-sm leading-relaxed text-slate-700">
+              <Icon icon="lucide:info" width={18} className="mt-0.5 shrink-0 text-[#1d4ed8]" />
+              <p>
+                <span className="font-semibold text-primeColor">Lưu ý: </span>
+                {priceNote}
               </p>
+            </div>
 
-              <div className="flex items-center border border-gray-200">
-                <button
-                  onClick={() => setQty((q) => Math.max(1, q - 1))}
-                  className="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors text-lg"
-                >
-                  −
-                </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <button
+                type="button"
+                onClick={handleRequestQuote}
+                className="flex items-center justify-center gap-2 rounded-lg py-3.5 px-5
+                  text-sm font-semibold font-bodyFont text-white
+                  bg-[#1d4ed8] hover:bg-[#1e40af] transition-all duration-200 shadow-sm"
+              >
+                <Icon icon="lucide:clipboard-list" width={18} />
+                Nhận báo giá
+              </button>
 
-                <span className="w-12 text-center text-sm font-bodyFont font-medium">
-                  {qty}
+              <button
+                type="button"
+                onClick={handleZaloConsult}
+                className="flex items-center justify-center gap-2 rounded-lg py-3.5 px-5
+                  text-sm font-semibold font-bodyFont text-[#1d4ed8]
+                  border border-[#1d4ed8] bg-white hover:bg-blue-50 transition-all duration-200"
+              >
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#0068ff] text-[9px] font-bold text-white">
+                  Zalo
                 </span>
-
-                <button
-                  onClick={() => setQty((q) => Math.min(currentStock, q + 1))}
-                  disabled={qty >= currentStock}
-                  className="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors text-lg disabled:opacity-40"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mb-8">
-              <button
-                onClick={handleAddToCart}
-                disabled={isOutOfStock || adding}
-                className={`flex-1 flex items-center justify-center gap-2.5 py-4
-                  text-sm font-semibold font-bodyFont tracking-widest text-white
-                  transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
-                  ${addedToCart ? "bg-success" : "bg-primeColor hover:bg-gray-700"}`}
-              >
-                {adding ? "Đang thêm..." : addedToCart ? "Đã thêm vào giỏ!" : "Thêm vào giỏ hàng"}
-              </button>
-
-              <button
-                onClick={handleBuyNow}
-                disabled={isOutOfStock || adding}
-                className="flex-1 flex items-center justify-center gap-2.5 py-4
-                  text-sm font-semibold font-bodyFont tracking-widest text-white
-                  bg-red-500 hover:bg-red-600 transition-all duration-300
-                  hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Mua ngay
+                Tư vấn qua Zalo
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={handleChatWithShop}
+              className="mb-8 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white py-3 px-5 text-sm font-semibold font-bodyFont text-primeColor transition hover:border-primeColor hover:bg-gray-50"
+            >
+              <Icon icon="mdi:chat-processing-outline" width={18} />
+              Chat với admin / người bán
+            </button>
 
             {product.description && (
               <div className="border-t border-gray-100 pt-6">
@@ -374,6 +408,12 @@ export default function ProductDetailPage() {
           }}
         />
       </div>
+
+      <QuoteRequestModal
+        open={quoteModalOpen}
+        onClose={() => setQuoteModalOpen(false)}
+        product={product}
+      />
     </div>
   );
 }
@@ -426,9 +466,16 @@ function ReviewSection({
         rating,
         content: content.trim() || undefined,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error("Create review failed", error);
-      showToast(error?.response?.data?.message ?? "Không thể gửi đánh giá", "error");
+      const message =
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : "Không thể gửi đánh giá";
+      showToast(message ?? "Không thể gửi đánh giá", "error");
     }
   };
 

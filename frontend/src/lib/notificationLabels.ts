@@ -5,7 +5,9 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   Payment: "Thanh toán",
   Return: "Hoàn hàng",
   Refund: "Hoàn tiền",
-  ChatMessage: "Tin nhan",
+  ChatMessage: "Tin nhắn",
+  QuoteCreated: "Yêu cầu báo giá",
+  QuoteStatusChanged: "Cập nhật báo giá",
 };
 
 export function formatNotificationType(type: NotificationType) {

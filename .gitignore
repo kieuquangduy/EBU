@@ -23,6 +23,7 @@
 # Local temporary artifacts
 ############################
 .codex-temp/
+**/App_Data/uploads/
 
 ############################
 # Environment variables

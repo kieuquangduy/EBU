@@ -1,20 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useProducts } from "../hooks/useProducts";
 import ProductCard from "../components/product/ProductCard";
 import ProductCardSkeleton from "../components/product/Productcardskeleton";
 import type { ProductQueryDto } from "../@types/product.type";
 import { useDebounce } from "../hooks/useDebounce";
 import { useWishlistIds } from "../hooks/useWishlist";
-import { PAGE_SIZE, PRICE_RANGES, SORT_OPTIONS, STATUS_OPTIONS } from "../lib/catalog";
+import { cachePolicy } from "../lib/cachePolicy";
+import {
+  CUSTOM_CATEGORY_OPTIONS,
+  PAGE_SIZE,
+  PRICE_RANGES,
+  SORT_OPTIONS,
+  STATUS_OPTIONS,
+} from "../lib/catalog";
 import { normalizeProductQuery } from "../lib/productQuery";
+import { queryKeys } from "../lib/queryKeys";
+import { categoryService } from "../services/categoryService";
 
 export default function ShopPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchFromUrl = searchParams.get("search") ?? "";
+  const categoryFromUrl = searchParams.get("categoryId") ?? "";
 
   // ── Filter state ──────────────────────────────────────────────────────────
   const [searchInput, setSearchInput] = useState(() => searchFromUrl);
+  const [categoryId, setCategoryId] = useState<string | undefined>(() => categoryFromUrl || undefined);
   const [sortIdx, setSortIdx] = useState(0);
   const [minPrice, setMinPrice] = useState<number | undefined>();
   const [maxPrice, setMaxPrice] = useState<number | undefined>();
@@ -26,13 +38,40 @@ export default function ShopPage() {
 
   useEffect(() => {
     setSearchInput(searchFromUrl);
+    setCategoryId(categoryFromUrl || undefined);
     setPage(1);
-  }, [searchFromUrl]);
+  }, [categoryFromUrl, searchFromUrl]);
+
+  const { data: apiCategories = [] } = useQuery({
+    queryKey: queryKeys.categories.all,
+    queryFn: ({ signal }) => categoryService.getAll(signal),
+    ...cachePolicy.category,
+  });
+
+  const categoryOptions = useMemo(() => {
+    const active = apiCategories.filter((cat) => cat.isActive);
+    if (active.length === 0) return CUSTOM_CATEGORY_OPTIONS;
+
+    const parentIds = new Set(active.map((cat) => cat.parentId).filter(Boolean));
+    const leaves = active.filter((cat) => !parentIds.has(cat.id));
+    return (leaves.length > 0 ? leaves : active).map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+    }));
+  }, [apiCategories]);
+
+  const selectedCategoryName = useMemo(
+    () =>
+      categoryOptions.find((cat) => cat.id === categoryId)?.name ??
+      apiCategories.find((cat) => cat.id === categoryId)?.name,
+    [apiCategories, categoryId, categoryOptions]
+  );
 
   const query = useMemo<ProductQueryDto>(
     () =>
       normalizeProductQuery({
         search: debouncedSearch || undefined,
+        categoryId,
         isActive: status,
         sortBy: sort.sortBy,
         sortOrder: sort.sortOrder,
@@ -42,7 +81,7 @@ export default function ShopPage() {
         pageSize: PAGE_SIZE,
         includeTotal: false,
       }),
-    [debouncedSearch, maxPrice, minPrice, page, sort.sortBy, sort.sortOrder, status]
+    [categoryId, debouncedSearch, maxPrice, minPrice, page, sort.sortBy, sort.sortOrder, status]
   );
 
   const { items, total, totalPages, hasNextPage, isLoading, isError, error, refetch } = useProducts(query);
@@ -53,6 +92,22 @@ export default function ShopPage() {
     setSearchInput(v);
     setPage(1);
   }, []);
+
+  const handleCategory = useCallback(
+    (nextCategoryId?: string) => {
+      setCategoryId(nextCategoryId);
+      setPage(1);
+
+      const nextParams = new URLSearchParams(searchParams);
+      if (nextCategoryId) {
+        nextParams.set("categoryId", nextCategoryId);
+      } else {
+        nextParams.delete("categoryId");
+      }
+      setSearchParams(nextParams, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
 
   const handleSort = useCallback((idx: number) => {
     setSortIdx(idx);
@@ -72,15 +127,18 @@ export default function ShopPage() {
 
   const handleReset = useCallback(() => {
     setSearchInput("");
+    setCategoryId(undefined);
     setMinPrice(undefined);
     setMaxPrice(undefined);
     setStatus(true);
     setSortIdx(0);
     setPage(1);
-  }, []);
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
 
   const hasActiveFilter = !!(
     searchInput ||
+    categoryId ||
     minPrice !== undefined ||
     maxPrice !== undefined ||
     status !== true
@@ -98,7 +156,9 @@ export default function ShopPage() {
             <span className="text-gray-300">/</span>
             <span className="text-primeColor">Shop</span>
           </nav>
-          <h1 className="font-titleFont text-3xl font-bold">Tất cả sản phẩm</h1>
+          <h1 className="font-titleFont text-3xl font-bold">
+            {selectedCategoryName ?? "Tất cả áo custom"}
+          </h1>
           <p className="text-sm text-lightText font-bodyFont mt-1.5">
             {isLoading
               ? "Đang tải..."
@@ -140,6 +200,41 @@ export default function ShopPage() {
                     <path d="m20 20-3.5-3.5" />
                   </svg>
                 </span>
+              </div>
+            </div>
+
+            {/* Category */}
+            <div>
+              <h4 className="text-xs tracking-[2px] uppercase font-semibold mb-4 font-titleFont">
+                Danh mục
+              </h4>
+              <div className="space-y-2.5">
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <input
+                    type="radio"
+                    name="category"
+                    checked={!categoryId}
+                    onChange={() => handleCategory(undefined)}
+                    className="accent-red-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bodyFont text-lightText group-hover:text-primeColor transition-colors">
+                    Tất cả
+                  </span>
+                </label>
+                {categoryOptions.map((cat) => (
+                  <label key={cat.id} className="flex items-center gap-2.5 cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="category"
+                      checked={categoryId === cat.id}
+                      onChange={() => handleCategory(cat.id)}
+                      className="accent-red-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-bodyFont text-lightText group-hover:text-primeColor transition-colors">
+                      {cat.name}
+                    </span>
+                  </label>
+                ))}
               </div>
             </div>
 
@@ -203,6 +298,35 @@ export default function ShopPage() {
 
         {/* ── Main content ──────────────────────────────────────────────── */}
         <div className="flex-1 min-w-0">
+          {/* Mobile category pills */}
+          <div className="mb-5 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+            <button
+              type="button"
+              onClick={() => handleCategory(undefined)}
+              className={`shrink-0 border px-3.5 py-1.5 text-xs font-bodyFont transition-colors ${
+                !categoryId
+                  ? "border-red-500 bg-red-500 text-white"
+                  : "border-gray-200 bg-white text-lightText hover:border-primeColor hover:text-primeColor"
+              }`}
+            >
+              Tất cả
+            </button>
+            {categoryOptions.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => handleCategory(cat.id)}
+                className={`shrink-0 border px-3.5 py-1.5 text-xs font-bodyFont transition-colors ${
+                  categoryId === cat.id
+                    ? "border-red-500 bg-red-500 text-white"
+                    : "border-gray-200 bg-white text-lightText hover:border-primeColor hover:text-primeColor"
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+
           {/* Toolbar */}
           <div className="flex items-center justify-between mb-7 pb-5 border-b border-gray-100">
             <p className="text-sm text-lightText font-bodyFont hidden md:block">
@@ -227,6 +351,13 @@ export default function ShopPage() {
           {/* Active filter tags */}
           {hasActiveFilter && (
             <div className="flex flex-wrap gap-2 mb-5">
+              {selectedCategoryName && (
+                <FilterTag
+                  label={`Danh mục: ${selectedCategoryName}`}
+                  onRemove={() => handleCategory(undefined)}
+                />
+              )}
+
               {(minPrice !== undefined || maxPrice !== undefined) && (
                 <FilterTag
                   label={

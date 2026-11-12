@@ -27,6 +27,5 @@ namespace api.models.entities
 
         // Navigation properties
         public Product Product { get; set; } = null!;
-        public ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
     }
 }

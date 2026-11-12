@@ -82,11 +82,11 @@ export function ResizableTh({
 export const adminTitles: Record<string, { title: string }> = {
   "/admin": { title: "Tổng quan" },
   "/admin/users": { title: "Nhân sự" },
+  "/admin/quotes": { title: "Quản lý báo giá (RFQ)" },
   "/admin/orders": { title: "Quản lý đơn hàng" },
   "/admin/notifications": { title: "Thông báo" },
   "/admin/chat": { title: "Hỗ trợ trực tuyến" },
   "/admin/products": { title: "Quản lý sản phẩm" },
-  "/admin/inventory": { title: "Quản lý tồn kho" },
   "/admin/media": { title: "Quản lý hình ảnh" },
   "/admin/settings": { title: "Cài đặt" },
 };

@@ -10,16 +10,17 @@ public static class CacheKeys
     public const string AppPrefix = "haushop:v1";
 
     public static string ProductPrefix => $"{AppPrefix}:product:";
-    public static string ProductListPrefix => $"{AppPrefix}:product:list:v3:";
+    public static string ProductListPrefix => $"{AppPrefix}:product:list:v4:";
     public static string ProductSlugPrefix => $"{AppPrefix}:product:slug:";
     public static string CategoryPrefix => $"{AppPrefix}:category:";
     public static string HomepagePrefix => $"{AppPrefix}:homepage:";
-    public static string CartUserPrefix => $"{AppPrefix}:cart:user:";
+    public static string ShopContactPrefix => $"{AppPrefix}:shop-contact";
     public static string JwtBlacklistPrefix => $"{AppPrefix}:auth:jwt:blacklist:";
     public static string RefreshTokenPrefix => $"{AppPrefix}:auth:refresh-token:";
     public static string RefreshTokenUserPrefix => $"{AppPrefix}:auth:refresh-token:user:";
     public static string OtpPrefix => $"{AppPrefix}:auth:otp:";
     public static string RateLimitLoginPrefix => $"{AppPrefix}:rate-limit:login:";
+    public static string RateLimitRfqPrefix => $"{AppPrefix}:rate-limit:rfq:";
 
     public static string ProductDetail(string productId) => $"{ProductPrefix}{Normalize(productId)}";
     public static string ProductSlug(string slug) => $"{ProductSlugPrefix}{Normalize(slug)}";
@@ -29,9 +30,7 @@ public static class CacheKeys
     public static string CategoryActive() => $"{CategoryPrefix}active";
 
     public static string Homepage(string section) => $"{HomepagePrefix}{Normalize(section)}";
-
-    public static string UserCart(string userId) => $"{CartUserPrefix}{Normalize(userId)}";
-    public static string GuestCart(string guestId) => $"{AppPrefix}:cart:guest:{Normalize(guestId)}";
+    public static string ShopContact() => ShopContactPrefix;
 
     public static string JwtBlacklist(string jti) => $"{JwtBlacklistPrefix}{Normalize(jti)}";
     public static string RefreshToken(string refreshTokenHash) => $"{RefreshTokenPrefix}{HashValue(refreshTokenHash)}";
@@ -39,6 +38,7 @@ public static class CacheKeys
     public static string PasswordResetOtp(string userId) => $"{OtpPrefix}reset-password:{Normalize(userId)}";
 
     public static string LoginRateLimit(string discriminator) => $"{RateLimitLoginPrefix}{HashValue(discriminator)}";
+    public static string RfqRateLimit(string discriminator) => $"{RateLimitRfqPrefix}{HashValue(discriminator)}";
     public static string CacheIndex(string prefix) => $"{AppPrefix}:cache-index:{HashValue(prefix)}";
 
     public static string GetIndexPrefix(string key)
@@ -48,9 +48,6 @@ public static class CacheKeys
 
         if (key.StartsWith(ProductSlugPrefix, StringComparison.Ordinal))
             return ProductSlugPrefix;
-
-        if (key.StartsWith(CartUserPrefix, StringComparison.Ordinal))
-            return CartUserPrefix;
 
         var lastColon = key.LastIndexOf(':');
         return lastColon <= 0 ? key : key[..(lastColon + 1)];

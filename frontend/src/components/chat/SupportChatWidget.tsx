@@ -2,8 +2,10 @@ import { Icon } from "@iconify/react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import type { SupportAvailabilityDto } from "../../@types/chat.type";
 import { useAuth } from "../../hooks/useAuth";
 import { ROUTES } from "../../lib/routes";
+import { chatService } from "../../services/chatService";
 
 const AiChatPanel = lazy(() => import("./AiChatPanel"));
 const SupportChatPanel = lazy(() => import("./SupportChatPanel"));
@@ -11,6 +13,8 @@ const SupportChatPanel = lazy(() => import("./SupportChatPanel"));
 type ActivePanel = "ai" | "support" | null;
 type SupportChatWidgetProps = {
   initialPanel?: Exclude<ActivePanel, null>;
+  productId?: string;
+  quoteRequestId?: string;
 };
 
 function ChatPanelSkeleton({ tone }: { tone: "ai" | "support" }) {
@@ -60,7 +64,7 @@ function SignInPrompt({
           <div>
             <p className="text-sm font-bold">{isAi ? "Trợ lý AI HauShop" : "CSKH HauShop"}</p>
             <p className="text-[11px] text-white/85">
-              {isAi ? "Tư vấn sản phẩm và đơn hàng" : "Chat trực tuyến với nhân viên"}
+              {isAi ? "Tư vấn mẫu áo và báo giá nhanh" : "Chat trực tuyến với nhân viên"}
             </p>
           </div>
         </div>
@@ -91,8 +95,8 @@ function SignInPrompt({
           </h2>
           <p className="mt-1.5 text-xs leading-5 text-slate-500">
             {isAi
-              ? "Đăng nhập tài khoản để trợ lý AI ghi nhớ lịch sử trò chuyện và tra cứu đơn hàng của bạn."
-              : "Đăng nhập tài khoản để kết nối trực tiếp với nhân viên tư vấn HauShop giống Zalo / Messenger."}
+              ? "Đăng nhập tài khoản để trợ lý AI ghi nhớ lịch sử trò chuyện và gợi ý báo giá phù hợp."
+              : "Đăng nhập tài khoản để kết nối trực tiếp với nhân viên tư vấn HauShop."}
           </p>
           <button
             type="button"
@@ -120,6 +124,7 @@ function FloatingButton({
   label,
   badge,
   tone,
+  count,
   onClick,
   children,
 }: {
@@ -127,6 +132,7 @@ function FloatingButton({
   label: string;
   badge: string;
   tone: "ai" | "support";
+  count?: number;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -144,6 +150,11 @@ function FloatingButton({
       title={label}
     >
       {active ? <Icon icon="mdi:close" width={24} /> : children}
+      {!active && count && count > 0 ? (
+        <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+          {count > 99 ? "99+" : count}
+        </span>
+      ) : null}
       {!active ? (
         <span className="pointer-events-none absolute right-full mr-2.5 hidden whitespace-nowrap rounded-full bg-slate-900/90 px-3 py-1 text-xs font-medium text-white opacity-0 shadow-md transition group-hover:opacity-100 sm:block">
           {badge}
@@ -153,15 +164,35 @@ function FloatingButton({
   );
 }
 
-export default function SupportChatWidget({ initialPanel }: SupportChatWidgetProps) {
+export default function SupportChatWidget({
+  initialPanel,
+  productId,
+  quoteRequestId,
+}: SupportChatWidgetProps) {
   const { isAuthenticated } = useAuth();
   const [activePanel, setActivePanel] = useState<ActivePanel>(initialPanel ?? null);
+  const [availability, setAvailability] = useState<SupportAvailabilityDto | null>(null);
 
   useEffect(() => {
     if (initialPanel) {
       setActivePanel(initialPanel);
     }
   }, [initialPanel]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAvailability(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    chatService
+      .getSupportAvailability(controller.signal)
+      .then((res) => setAvailability(res))
+      .catch(() => {});
+
+    return () => controller.abort();
+  }, [isAuthenticated, activePanel]);
 
   const closePanel = () => setActivePanel(null);
 
@@ -186,6 +217,9 @@ export default function SupportChatWidget({ initialPanel }: SupportChatWidgetPro
                 />
               ) : (
                 <SupportChatPanel
+                  productId={productId}
+                  quoteRequestId={quoteRequestId}
+                  initialAvailability={availability}
                   onClose={closePanel}
                   onSwitchToAi={() => setActivePanel("ai")}
                 />
@@ -211,8 +245,13 @@ export default function SupportChatWidget({ initialPanel }: SupportChatWidgetPro
         <FloatingButton
           active={activePanel === "support"}
           label={activePanel === "support" ? "Đóng chat nhân viên" : "Mở chat CSKH"}
-          badge="Chat với CSKH"
+          badge={
+            availability?.isAdminOnline === false
+              ? "Admin đang offline — Gửi lời nhắn"
+              : "Chat với CSKH"
+          }
           tone="support"
+          count={availability?.unreadCount}
           onClick={() => setActivePanel((current) => (current === "support" ? null : "support"))}
         >
           <Icon icon="mdi:facebook-messenger" width={26} />

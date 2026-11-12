@@ -1,3 +1,4 @@
+using System.Text.Json;
 using api.data;
 using api.DTOs.chat;
 using api.common;
@@ -10,6 +11,7 @@ namespace api.services.implementations.chat
 {
     public class ChatService : IChatService
     {
+        private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
         private readonly ApplicationDbContext _context;
 
         public ChatService(ApplicationDbContext context)
@@ -17,15 +19,29 @@ namespace api.services.implementations.chat
             _context = context;
         }
 
-        public async Task<ChatRoomDto> GetOrCreateSupportRoomAsync(string customerId, string? subject, CancellationToken ct = default)
+        public Task<ChatRoomDto> GetOrCreateSupportRoomAsync(string customerId, string? subject, CancellationToken ct = default)
         {
-            var trimmedSubject = string.IsNullOrWhiteSpace(subject) ? "Support chat" : subject.Trim();
-            return await GetOrCreateRoomAsync(customerId, trimmedSubject, ChatRoomType.Support, "Support", ct);
+            return GetOrCreateSupportRoomAsync(customerId, new StartSupportChatDto { Subject = subject }, ct);
         }
 
-        public async Task<ChatRoomDto> GetOrCreateAiRoomAsync(string customerId, CancellationToken ct = default)
+        public async Task<ChatRoomDto> GetOrCreateSupportRoomAsync(string customerId, StartSupportChatDto dto, CancellationToken ct = default)
         {
-            return await GetOrCreateRoomAsync(customerId, "AI assistant", ChatRoomType.AiSupport, "AI", ct);
+            dto ??= new StartSupportChatDto();
+            var subject = ChatContentSanitizer.SanitizeSubject(dto.Subject, "Tư vấn áo custom");
+            return await GetOrCreateRoomAsync(
+                customerId,
+                subject,
+                ChatRoomType.Support,
+                "Support",
+                dto.ProductId,
+                dto.QuoteRequestId,
+                dto.InitialMessage,
+                ct);
+        }
+
+        public Task<ChatRoomDto> GetOrCreateAiRoomAsync(string customerId, CancellationToken ct = default)
+        {
+            return GetOrCreateRoomAsync(customerId, "AI assistant", ChatRoomType.AiSupport, "AI", null, null, null, ct);
         }
 
         private async Task<ChatRoomDto> GetOrCreateRoomAsync(
@@ -33,6 +49,9 @@ namespace api.services.implementations.chat
             string subject,
             ChatRoomType roomType,
             string roomPrefix,
+            string? productId,
+            string? quoteRequestId,
+            string? initialMessage,
             CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(customerId))
@@ -43,46 +62,136 @@ namespace api.services.implementations.chat
             var customer = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == customerId, ct)
                 ?? throw new KeyNotFoundException("Customer not found");
 
-            var trimmedSubject = subject.Trim();
+            Product? contextProduct = null;
+            if (!string.IsNullOrWhiteSpace(productId))
+            {
+                contextProduct = await _context.Products
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == productId.Trim(), ct)
+                    ?? throw new KeyNotFoundException("Product not found");
+            }
 
-            var existing = await _context.SupportTickets
-                .AsNoTracking()
+            QuoteRequest? contextQuote = null;
+            if (!string.IsNullOrWhiteSpace(quoteRequestId))
+            {
+                contextQuote = await _context.QuoteRequests
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(q => q.Id == quoteRequestId.Trim(), ct)
+                    ?? throw new KeyNotFoundException("Quote request not found");
+
+                if (contextQuote.UserId != customerId)
+                {
+                    throw new ForbiddenAccessException("You cannot link another user's quote request.");
+                }
+            }
+
+            var existingTicket = await _context.SupportTickets
+                .Include(t => t.ChatRoom)
                 .Where(t => t.CustomerId == customerId
                     && t.Status != SupportTicketStatus.Closed
                     && t.ChatRoom.Type == roomType)
                 .OrderByDescending(t => t.Created)
                 .FirstOrDefaultAsync(ct);
 
-            if (existing is not null)
+            string roomId;
+            bool shouldInsertProductCard = false;
+
+            if (existingTicket is not null)
             {
-                return await MapRoomAsync(existing.ChatRoomId, customerId, false, ct);
+                roomId = existingTicket.ChatRoomId;
+
+                if (contextProduct is not null && existingTicket.ProductId != contextProduct.Id)
+                {
+                    existingTicket.ProductId = contextProduct.Id;
+                    existingTicket.ChatRoom.ProductId = contextProduct.Id;
+                    shouldInsertProductCard = true;
+                }
+
+                if (contextQuote is not null && existingTicket.QuoteRequestId != contextQuote.Id)
+                {
+                    existingTicket.QuoteRequestId = contextQuote.Id;
+                    existingTicket.ChatRoom.QuoteRequestId = contextQuote.Id;
+                }
+            }
+            else
+            {
+                var room = new ChatRoom
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = $"{roomPrefix} - {BuildFullName(customer)}",
+                    IsPrivate = true,
+                    Type = roomType,
+                    ProductId = contextProduct?.Id,
+                    QuoteRequestId = contextQuote?.Id,
+                    Created = DateTime.UtcNow
+                };
+
+                var ticket = new SupportTicket
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    CustomerId = customerId,
+                    ChatRoomId = room.Id,
+                    ProductId = contextProduct?.Id,
+                    QuoteRequestId = contextQuote?.Id,
+                    Subject = contextProduct is not null && subject == "Tư vấn áo custom"
+                        ? $"Tư vấn: {contextProduct.Name}"
+                        : subject,
+                    Status = SupportTicketStatus.Open,
+                    Priority = roomType == ChatRoomType.AiSupport ? SupportTicketPriority.Low : SupportTicketPriority.Medium,
+                    Created = DateTime.UtcNow
+                };
+
+                _context.ChatRooms.Add(room);
+                _context.SupportTickets.Add(ticket);
+                roomId = room.Id;
+                shouldInsertProductCard = contextProduct is not null;
             }
 
-            var room = new ChatRoom
+            if (shouldInsertProductCard && contextProduct is not null)
             {
-                Id = Guid.NewGuid().ToString(),
-                Name = $"{roomPrefix} - {BuildFullName(customer)}",
-                IsPrivate = true,
-                Type = roomType,
-                Created = DateTime.UtcNow
-            };
+                var cardPayload = new ChatProductCardDto
+                {
+                    ProductId = contextProduct.Id,
+                    Name = contextProduct.Name,
+                    Slug = contextProduct.Slug,
+                    ImageUrl = contextProduct.ImageUrl,
+                    BasePrice = contextProduct.BasePrice > 0 ? contextProduct.BasePrice : contextProduct.Price,
+                    OriginalPrice = contextProduct.OriginalPrice,
+                    DiscountPercent = contextProduct.DiscountPercent,
+                    MinOrderQuantity = contextProduct.MinOrderQuantity
+                };
 
-            var ticket = new SupportTicket
+                _context.ChatMessages.Add(new ChatMessage
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    ChatRoomId = roomId,
+                    SenderId = customerId,
+                    Message = $"Quan tâm sản phẩm: {contextProduct.Name}",
+                    MessageType = ChatMessageType.System,
+                    MetadataJson = JsonSerializer.Serialize(cardPayload, JsonOptions),
+                    IsRead = false,
+                    Created = DateTime.UtcNow
+                });
+            }
+
+            var sanitizedInitial = ChatContentSanitizer.SanitizeMessage(initialMessage);
+            if (!string.IsNullOrWhiteSpace(sanitizedInitial))
             {
-                Id = Guid.NewGuid().ToString(),
-                CustomerId = customerId,
-                ChatRoomId = room.Id,
-                Subject = trimmedSubject,
-                Status = SupportTicketStatus.Open,
-                Priority = roomType == ChatRoomType.AiSupport ? SupportTicketPriority.Low : SupportTicketPriority.Medium,
-                Created = DateTime.UtcNow
-            };
+                _context.ChatMessages.Add(new ChatMessage
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    ChatRoomId = roomId,
+                    SenderId = customerId,
+                    Message = sanitizedInitial,
+                    MessageType = ChatMessageType.Text,
+                    IsRead = false,
+                    Created = DateTime.UtcNow.AddMilliseconds(5)
+                });
+            }
 
-            _context.ChatRooms.Add(room);
-            _context.SupportTickets.Add(ticket);
             await _context.SaveChangesAsync(ct);
 
-            return await MapRoomAsync(room.Id, customerId, false, ct);
+            return await MapRoomAsync(roomId, customerId, ct);
         }
 
         public async Task<IReadOnlyList<ChatRoomDto>> GetRoomsAsync(string userId, bool isAdmin, CancellationToken ct = default)
@@ -113,6 +222,11 @@ namespace api.services.implementations.chat
                     CustomerIsOnline = t.Customer.IsOnline,
                     CustomerLastSeen = t.Customer.LastSeen,
                     t.AssignedToId,
+                    ProductId = t.ProductId ?? t.ChatRoom.ProductId,
+                    ProductName = t.Product != null ? t.Product.Name : (t.ChatRoom.Product != null ? t.ChatRoom.Product.Name : null),
+                    ProductSlug = t.Product != null ? t.Product.Slug : (t.ChatRoom.Product != null ? t.ChatRoom.Product.Slug : null),
+                    QuoteRequestId = t.QuoteRequestId ?? t.ChatRoom.QuoteRequestId,
+                    QuoteCode = t.QuoteRequest != null ? t.QuoteRequest.QuoteCode : (t.ChatRoom.QuoteRequest != null ? t.ChatRoom.QuoteRequest.QuoteCode : null),
                     t.Status,
                     t.Priority,
                     t.Created,
@@ -132,6 +246,8 @@ namespace api.services.implementations.chat
                             SenderRole = m.Sender.Role,
                             m.Message,
                             m.MessageType,
+                            m.AttachmentsJson,
+                            m.MetadataJson,
                             m.IsRead,
                             m.ReadAt,
                             m.Created
@@ -153,6 +269,11 @@ namespace api.services.implementations.chat
                 CustomerIsOnline = row.CustomerIsOnline,
                 CustomerLastSeen = row.CustomerLastSeen,
                 AssignedToId = row.AssignedToId,
+                ProductId = row.ProductId,
+                ProductName = row.ProductName,
+                ProductSlug = row.ProductSlug,
+                QuoteRequestId = row.QuoteRequestId,
+                QuoteCode = row.QuoteCode,
                 Status = row.Status.ToString(),
                 Priority = row.Priority.ToString(),
                 UnreadCount = row.UnreadCount,
@@ -169,6 +290,8 @@ namespace api.services.implementations.chat
                     SenderRole = row.LastMessage.SenderRole.ToString(),
                     Message = row.LastMessage.Message,
                     MessageType = row.LastMessage.MessageType.ToString(),
+                    Attachments = DeserializeAttachments(row.LastMessage.AttachmentsJson),
+                    ProductCard = DeserializeProductCard(row.LastMessage.MetadataJson),
                     IsRead = row.LastMessage.IsRead,
                     ReadAt = row.LastMessage.ReadAt,
                     Created = row.LastMessage.Created
@@ -195,11 +318,29 @@ namespace api.services.implementations.chat
             return messages.Select(MapMessage).ToList();
         }
 
-        public async Task<ChatMessageDto> SendMessageAsync(string roomId, string senderId, bool isAdmin, string message, string messageType = "Text", CancellationToken ct = default)
+        public async Task<ChatMessageDto> SendMessageAsync(
+            string roomId,
+            string senderId,
+            bool isAdmin,
+            string message,
+            string messageType = "Text",
+            CancellationToken ct = default,
+            IReadOnlyList<ChatAttachmentDto>? attachments = null)
         {
             await EnsureCanAccessRoomAsync(roomId, senderId, isAdmin, ct);
 
-            var normalizedMessage = message.Trim();
+            var sanitizedAttachments = ChatContentSanitizer.SanitizeAttachments(attachments);
+            var normalizedMessage = ChatContentSanitizer.SanitizeMessage(message);
+
+            if (string.IsNullOrWhiteSpace(normalizedMessage))
+            {
+                if (sanitizedAttachments is null || sanitizedAttachments.Count == 0)
+                {
+                    throw new ArgumentException("Nội dung tin nhắn không hợp lệ.");
+                }
+
+                normalizedMessage = "[Tệp đính kèm]";
+            }
 
             if (!Enum.TryParse<ChatMessageType>(messageType, true, out var parsedType))
             {
@@ -224,6 +365,7 @@ namespace api.services.implementations.chat
                 SenderId = senderId,
                 Message = normalizedMessage,
                 MessageType = parsedType,
+                AttachmentsJson = sanitizedAttachments is null ? null : JsonSerializer.Serialize(sanitizedAttachments, JsonOptions),
                 IsRead = false,
                 Created = DateTime.UtcNow
             };
@@ -249,7 +391,11 @@ namespace api.services.implementations.chat
         {
             await EnsureCanAccessRoomAsync(roomId, senderId, false, ct);
 
-            var normalizedMessage = message.Trim();
+            var normalizedMessage = ChatContentSanitizer.SanitizeMessage(message);
+            if (string.IsNullOrWhiteSpace(normalizedMessage))
+            {
+                throw new ArgumentException("Nội dung tin nhắn không hợp lệ.");
+            }
 
             if (!Enum.TryParse<ChatMessageType>(messageType, true, out var parsedType))
             {
@@ -298,15 +444,11 @@ namespace api.services.implementations.chat
             }
 
             var assistant = await GetOrCreateAssistantUserAsync(ct);
-            var normalizedMessage = message?.Trim();
+
+            var normalizedMessage = ChatContentSanitizer.SanitizeMessage(message);
             if (string.IsNullOrWhiteSpace(normalizedMessage))
             {
                 throw new InvalidOperationException("Assistant message could not be created.");
-            }
-
-            if (normalizedMessage.Length > 5000)
-            {
-                normalizedMessage = normalizedMessage[..5000];
             }
 
             var chatMessage = new ChatMessage
@@ -393,7 +535,38 @@ namespace api.services.implementations.chat
             }
         }
 
-        private async Task<ChatRoomDto> MapRoomAsync(string roomId, string userId, bool isAdmin, CancellationToken ct)
+        public async Task<SupportAvailabilityDto> GetSupportAvailabilityAsync(string userId, CancellationToken ct = default)
+        {
+            var onlineAdminCount = await _context.Users
+                .AsNoTracking()
+                .CountAsync(u => u.Role == Role.Admin && u.IsOnline && u.Id != "hau-ai-assistant", ct);
+
+            var unreadCount = await _context.ChatMessages
+                .AsNoTracking()
+                .Where(m =>
+                    !m.IsRead &&
+                    m.SenderId != userId &&
+                    m.ChatRoom.Type == ChatRoomType.Support &&
+                    m.ChatRoom.SupportTicket != null &&
+                    m.ChatRoom.SupportTicket.CustomerId == userId &&
+                    m.ChatRoom.SupportTicket.Status != SupportTicketStatus.Closed)
+                .CountAsync(ct);
+
+            var workingHours = await _context.ShopContacts
+                .AsNoTracking()
+                .Select(c => c.WorkingHours)
+                .FirstOrDefaultAsync(ct);
+
+            return new SupportAvailabilityDto
+            {
+                IsAdminOnline = onlineAdminCount > 0,
+                OnlineAdminCount = onlineAdminCount,
+                UnreadCount = unreadCount,
+                WorkingHours = workingHours
+            };
+        }
+
+        private async Task<ChatRoomDto> MapRoomAsync(string roomId, string userId, CancellationToken ct)
         {
             var row = await _context.SupportTickets
                 .AsNoTracking()
@@ -412,6 +585,11 @@ namespace api.services.implementations.chat
                     CustomerIsOnline = t.Customer.IsOnline,
                     CustomerLastSeen = t.Customer.LastSeen,
                     t.AssignedToId,
+                    ProductId = t.ProductId ?? t.ChatRoom.ProductId,
+                    ProductName = t.Product != null ? t.Product.Name : (t.ChatRoom.Product != null ? t.ChatRoom.Product.Name : null),
+                    ProductSlug = t.Product != null ? t.Product.Slug : (t.ChatRoom.Product != null ? t.ChatRoom.Product.Slug : null),
+                    QuoteRequestId = t.QuoteRequestId ?? t.ChatRoom.QuoteRequestId,
+                    QuoteCode = t.QuoteRequest != null ? t.QuoteRequest.QuoteCode : (t.ChatRoom.QuoteRequest != null ? t.ChatRoom.QuoteRequest.QuoteCode : null),
                     t.Status,
                     t.Priority,
                     t.Created,
@@ -431,6 +609,8 @@ namespace api.services.implementations.chat
                             SenderRole = m.Sender.Role,
                             m.Message,
                             m.MessageType,
+                            m.AttachmentsJson,
+                            m.MetadataJson,
                             m.IsRead,
                             m.ReadAt,
                             m.Created
@@ -453,6 +633,11 @@ namespace api.services.implementations.chat
                 CustomerIsOnline = row.CustomerIsOnline,
                 CustomerLastSeen = row.CustomerLastSeen,
                 AssignedToId = row.AssignedToId,
+                ProductId = row.ProductId,
+                ProductName = row.ProductName,
+                ProductSlug = row.ProductSlug,
+                QuoteRequestId = row.QuoteRequestId,
+                QuoteCode = row.QuoteCode,
                 Status = row.Status.ToString(),
                 Priority = row.Priority.ToString(),
                 UnreadCount = row.UnreadCount,
@@ -469,6 +654,8 @@ namespace api.services.implementations.chat
                     SenderRole = row.LastMessage.SenderRole.ToString(),
                     Message = row.LastMessage.Message,
                     MessageType = row.LastMessage.MessageType.ToString(),
+                    Attachments = DeserializeAttachments(row.LastMessage.AttachmentsJson),
+                    ProductCard = DeserializeProductCard(row.LastMessage.MetadataJson),
                     IsRead = row.LastMessage.IsRead,
                     ReadAt = row.LastMessage.ReadAt,
                     Created = row.LastMessage.Created
@@ -490,10 +677,46 @@ namespace api.services.implementations.chat
                 SenderRole = message.Sender.Role.ToString(),
                 Message = message.Message,
                 MessageType = message.MessageType.ToString(),
+                Attachments = DeserializeAttachments(message.AttachmentsJson),
+                ProductCard = DeserializeProductCard(message.MetadataJson),
                 IsRead = message.IsRead,
                 ReadAt = message.ReadAt,
                 Created = message.Created
             };
+        }
+
+        private static List<ChatAttachmentDto>? DeserializeAttachments(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<ChatAttachmentDto>>(json, JsonOptions);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static ChatProductCardDto? DeserializeProductCard(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<ChatProductCardDto>(json, JsonOptions);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static string BuildFullName(string? firstName, string? lastName, string email)

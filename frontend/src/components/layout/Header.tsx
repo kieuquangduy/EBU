@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
@@ -6,9 +6,7 @@ import { useDebounce } from "../../hooks/useDebounce";
 import { cachePolicy } from "../../lib/cachePolicy";
 import { queryKeys } from "../../lib/queryKeys";
 import { ROUTES, routeTo } from "../../lib/routes";
-import { cartDtoToState } from "../../lib/cart";
 import { logger } from "../../lib/logger";
-import { useCart } from "../../hooks/useCart";
 import type { ProductSummaryDto } from "../../@types/product.type";
 import DesktopNav from "./header/DesktopNav";
 import HeaderActions from "./header/HeaderActions";
@@ -24,11 +22,6 @@ const iconButtonClass =
 
 export default function Header() {
   const { user, status, isAuthenticated, logout, updateAvatar, removeAvatar } = useAuth();
-  const cartQuery = useCart({ enabled: isAuthenticated });
-  const totalQty = useMemo(
-    () => (isAuthenticated ? cartDtoToState(cartQuery.data).totalQty : 0),
-    [cartQuery.data, isAuthenticated]
-  );
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -207,7 +200,7 @@ export default function Header() {
               <div className="flex min-w-0 items-center gap-4 lg:gap-8 xl:gap-10">
                 <Link to="/" className="shrink-0">
                   <span
-                    className="block text-xl font-extrabold tracking-[0.16em] text-black sm:text-2xl xl:text-[30px]"
+                    className="block text-base font-black tracking-[0.14em] text-primeColor sm:text-lg xl:text-[22px]"
                     style={{ fontFamily: "Inter, sans-serif" }}
                   >
                     HAUSHOP
@@ -247,7 +240,7 @@ export default function Header() {
                   onSuggestionClick={handleSuggestionClick}
                 />
 
-                <HeaderActions totalQty={totalQty} iconButtonClass={iconButtonClass} />
+                <HeaderActions iconButtonClass={iconButtonClass} />
 
                 <UserMenu
                   user={verifiedUser}
@@ -299,7 +292,6 @@ export default function Header() {
             isAdmin={isAdmin}
             avatarUrl={avatarUrl}
             resolvedAvatarUrl={resolvedAvatarUrl}
-            totalQty={totalQty}
             adminToggleTarget={adminToggleTarget}
             adminToggleLabel={adminToggleLabel}
             mobileMenuRef={mobileMenuRef}

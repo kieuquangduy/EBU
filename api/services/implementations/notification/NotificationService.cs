@@ -276,6 +276,106 @@ namespace api.services.implementations.notification
                 ct);
         }
 
+        public async Task NotifyQuoteCreatedAsync(string quoteRequestId, CancellationToken ct = default)
+        {
+            var quote = await _context.QuoteRequests
+                .AsNoTracking()
+                .FirstOrDefaultAsync(q => q.Id == quoteRequestId, ct);
+
+            if (quote is null) return;
+
+            var adminIds = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Role == Role.Admin)
+                .Select(u => u.Id)
+                .ToListAsync(ct);
+
+            if (adminIds.Count == 0) return;
+
+            var now = DateTime.UtcNow;
+            var metadata = JsonSerializer.Serialize(new
+            {
+                quoteRequestId = quote.Id,
+                quoteCode = quote.QuoteCode,
+                status = quote.Status.ToString()
+            });
+
+            var notifications = adminIds.Select(adminId => new Notification
+            {
+                Id = Guid.NewGuid().ToString(),
+                UserId = adminId,
+                Type = NotificationType.QuoteCreated,
+                Title = "Yêu cầu báo giá mới",
+                Message = $"Yêu cầu {quote.QuoteCode} từ {quote.CustomerName} (SL: {quote.Quantity}).",
+                Link = $"/admin/quotes?quoteId={Uri.EscapeDataString(quote.Id)}",
+                QuoteRequestId = quote.Id,
+                MetadataJson = metadata,
+                IsRead = false,
+                Created = now
+            }).ToList();
+
+            await SaveAndBroadcastNotificationsAsync(notifications, ct);
+        }
+
+        public async Task NotifyQuoteStatusChangedAsync(
+            string quoteRequestId,
+            QuoteStatus previousStatus,
+            QuoteStatus nextStatus,
+            CancellationToken ct = default)
+        {
+            var quote = await _context.QuoteRequests
+                .AsNoTracking()
+                .FirstOrDefaultAsync(q => q.Id == quoteRequestId, ct);
+
+            if (quote is null || string.IsNullOrWhiteSpace(quote.UserId))
+            {
+                return;
+            }
+
+            var message = nextStatus == QuoteStatus.Quoted && quote.QuotedPrice.HasValue
+                ? $"Yêu cầu {quote.QuoteCode} đã được báo giá {quote.QuotedPrice.Value:N0} đ."
+                : $"Yêu cầu {quote.QuoteCode} đã chuyển sang trạng thái {nextStatus}.";
+
+            var notification = new Notification
+            {
+                Id = Guid.NewGuid().ToString(),
+                UserId = quote.UserId,
+                Type = NotificationType.QuoteStatusChanged,
+                Title = "Cập nhật yêu cầu báo giá",
+                Message = message,
+                Link = $"/quotes/{Uri.EscapeDataString(quote.Id)}",
+                QuoteRequestId = quote.Id,
+                MetadataJson = JsonSerializer.Serialize(new
+                {
+                    quoteRequestId = quote.Id,
+                    quoteCode = quote.QuoteCode,
+                    previous = previousStatus.ToString(),
+                    status = nextStatus.ToString()
+                }),
+                IsRead = false,
+                Created = DateTime.UtcNow
+            };
+
+            await SaveAndBroadcastNotificationsAsync(new List<Notification> { notification }, ct);
+        }
+
+        private async Task SaveAndBroadcastNotificationsAsync(
+            List<Notification> notifications,
+            CancellationToken ct)
+        {
+            _context.Notifications.AddRange(notifications);
+            await _context.SaveChangesAsync(ct);
+
+            foreach (var notification in notifications)
+            {
+                var dto = MapNotification(notification);
+                await _hubContext.Clients
+                    .Group(NotificationHub.UserGroup(notification.UserId))
+                    .SendAsync("ReceiveNotification", dto, ct);
+                await PushUnreadCountAsync(notification.UserId, ct);
+            }
+        }
+
         private async Task<Order> LoadOrderForNotificationAsync(string orderId, CancellationToken ct)
         {
             return await _context.Orders
@@ -417,6 +517,7 @@ namespace api.services.implementations.notification
                 Message = notification.Message,
                 Link = notification.Link,
                 OrderId = notification.OrderId,
+                QuoteRequestId = notification.QuoteRequestId,
                 IsRead = notification.IsRead,
                 ReadAt = notification.ReadAt,
                 Created = notification.Created

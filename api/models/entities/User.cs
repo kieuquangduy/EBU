@@ -29,7 +29,6 @@ namespace api.models.entities
         public DateTime? Updated { get; set; }
 
         public ICollection<Address> Addresses { get; set; }
-        public Cart Cart { get; set; }
         public ICollection<Order> Orders { get; set; }
         public ICollection<Review> Reviews { get; set; }
         public ICollection<Wishlist> Wishlists { get; set; }
@@ -40,5 +39,6 @@ namespace api.models.entities
         public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
         public ICollection<PasswordResetOtp> PasswordResetOtps { get; set; } = new List<PasswordResetOtp>();
+        public ICollection<QuoteRequest> QuoteRequests { get; set; } = new List<QuoteRequest>();
     }
 }

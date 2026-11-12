@@ -115,7 +115,7 @@ export default function NotificationBell({
               <div className="px-4 py-10 text-center">
                 <Icon icon="mdi:bell-off-outline" width={32} className="mx-auto text-slate-300" />
                 <p className="mt-3 text-sm font-medium text-slate-700">Chưa có thông báo</p>
-                <p className="mt-1 text-xs text-slate-500">Cập nhật đơn hàng sẽ hiển thị ở đây.</p>
+                <p className="mt-1 text-xs text-slate-500">Cập nhật báo giá và tin nhắn sẽ hiển thị ở đây.</p>
               </div>
             )}
           </div>

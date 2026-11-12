@@ -1,3 +1,4 @@
+using System.Net;
 using MailKit.Net.Smtp;
 using MimeKit;
 using api.models.email;
@@ -75,6 +76,66 @@ namespace api.services.implementations.auth
             ");
 
             await SendAsync(email, subject, body);
+        }
+
+        // ======================================================
+        // 4. RFQ CREATED -> ADMIN
+        // ======================================================
+        public async Task SendQuoteCreatedAdminNotificationAsync(
+            string adminEmail,
+            string quoteCode,
+            string customerName,
+            string phone,
+            int quantity,
+            string? productName)
+        {
+            var safeCode = WebUtility.HtmlEncode(quoteCode);
+            var safeName = WebUtility.HtmlEncode(customerName);
+            var safePhone = WebUtility.HtmlEncode(phone);
+            var safeProduct = string.IsNullOrWhiteSpace(productName)
+                ? "Đặt áo custom theo yêu cầu"
+                : WebUtility.HtmlEncode(productName);
+
+            var subject = $"[HauShop] Yêu cầu báo giá mới {quoteCode}";
+            var body = BuildBaseTemplate($@"
+                <p>Hệ thống vừa nhận yêu cầu báo giá mới:</p>
+                <ul>
+                    <li><strong>Mã RFQ:</strong> {safeCode}</li>
+                    <li><strong>Khách hàng:</strong> {safeName} ({safePhone})</li>
+                    <li><strong>Mẫu áo:</strong> {safeProduct}</li>
+                    <li><strong>Số lượng:</strong> {quantity}</li>
+                </ul>
+                <p>Vui lòng mở trang quản trị HauShop để kiểm tra và phản hồi khách hàng.</p>
+            ");
+
+            await SendAsync(adminEmail, subject, body);
+        }
+
+        // ======================================================
+        // 5. RFQ QUOTED -> CUSTOMER
+        // ======================================================
+        public async Task SendQuotePricedCustomerAsync(
+            string customerEmail,
+            string customerName,
+            string quoteCode,
+            decimal quotedPrice,
+            string? quotedNote)
+        {
+            var safeName = WebUtility.HtmlEncode(customerName);
+            var safeCode = WebUtility.HtmlEncode(quoteCode);
+            var safeNote = string.IsNullOrWhiteSpace(quotedNote)
+                ? "Không có ghi chú thêm."
+                : WebUtility.HtmlEncode(quotedNote);
+
+            var subject = $"[HauShop] Báo giá chính thức cho yêu cầu {quoteCode}";
+            var body = BuildBaseTemplate($@"
+                <p>Xin chào <strong>{safeName}</strong>,</p>
+                <p>Yêu cầu báo giá <strong>{safeCode}</strong> của bạn đã được cập nhật báo giá chính thức:</p>
+                <div class='otp' style='letter-spacing: 1px; font-size: 22px;'>{quotedPrice:N0} đ</div>
+                <p><strong>Ghi chú từ HauShop:</strong> {safeNote}</p>
+            ");
+
+            await SendAsync(customerEmail, subject, body);
         }
 
         // ======================================================
@@ -169,6 +230,11 @@ namespace api.services.implementations.auth
             string subject,
             string htmlBody)
         {
+            if (string.IsNullOrWhiteSpace(_settings.SmtpServer))
+            {
+                return;
+            }
+
             var message = new MimeMessage();
 
             message.From.Add(new MailboxAddress(

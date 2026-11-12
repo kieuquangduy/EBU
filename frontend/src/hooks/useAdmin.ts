@@ -1,13 +1,22 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type {
-  AdminUpdateInventoryDto,
+  AdminCreateManualOrderDto,
+  AdminCreateOrderFromQuoteDto,
+  AdminUpdateOrderPaymentDto,
   AdminUpdateOrderStatusDto,
   AdminUpdateUserDto,
   AdminUpdateUserRoleDto,
   UpdateAdminSettingsDto,
+  UpdateShopContactDto,
 } from "../@types/admin.type";
 import type { CreateProductDto, UpdateProductDto } from "../@types/product.type";
+import type {
+  AssignQuoteAdminDto,
+  QuoteRequestFilterDto,
+  UpdateQuotePriceDto,
+  UpdateQuoteStatusDto,
+} from "../@types/quoteRequest.type";
 import { queryKeys } from "../lib/queryKeys";
 import {
   adminService,
@@ -121,6 +130,38 @@ export function useAdminOrder(orderId?: string) {
   });
 }
 
+export function useCreateOrderFromQuote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      quoteRequestId,
+      dto,
+    }: {
+      quoteRequestId: string;
+      dto: AdminCreateOrderFromQuoteDto;
+    }) => adminService.createOrderFromQuote(quoteRequestId, dto),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "quotes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.quote(vars.quoteRequestId) });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
+export function useCreateManualOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (dto: AdminCreateManualOrderDto) => adminService.createManualOrder(dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
 export function useUpdateAdminOrderStatus() {
   const queryClient = useQueryClient();
 
@@ -136,6 +177,105 @@ export function useUpdateAdminOrderStatus() {
       queryClient.setQueryData(queryKeys.admin.order(updatedOrder.id), updatedOrder);
       queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
+export function useUpdateAdminOrderPayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      dto,
+    }: {
+      orderId: string;
+      dto: AdminUpdateOrderPaymentDto;
+    }) => adminService.updateOrderPaymentStatus(orderId, dto),
+    onSuccess: (updatedOrder) => {
+      queryClient.setQueryData(queryKeys.admin.order(updatedOrder.id), updatedOrder);
+      queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
+export function useAdminQuotes(filters: QuoteRequestFilterDto) {
+  const normalizedFilters = useMemo(
+    () => ({
+      status: filters.status || undefined,
+      search: filters.search?.trim() || undefined,
+      fromDate: filters.fromDate || undefined,
+      toDate: filters.toDate || undefined,
+      assignedAdminId: filters.assignedAdminId || undefined,
+      page: filters.page ?? 1,
+      pageSize: filters.pageSize ?? 12,
+    }),
+    [
+      filters.assignedAdminId,
+      filters.fromDate,
+      filters.page,
+      filters.pageSize,
+      filters.search,
+      filters.status,
+      filters.toDate,
+    ]
+  );
+
+  return useQuery({
+    queryKey: queryKeys.admin.quotes(normalizedFilters),
+    queryFn: () => adminService.getQuotes(normalizedFilters),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminQuote(quoteId?: string) {
+  return useQuery({
+    queryKey: queryKeys.admin.quote(quoteId ?? ""),
+    queryFn: () => adminService.getQuoteById(quoteId!),
+    enabled: !!quoteId,
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateAdminQuoteStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: UpdateQuoteStatusDto }) =>
+      adminService.updateQuoteStatus(id, dto),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.admin.quote(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: ["admin", "quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
+export function useUpdateAdminQuotePrice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: UpdateQuotePriceDto }) =>
+      adminService.updateQuotePrice(id, dto),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.admin.quote(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: ["admin", "quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
+export function useAssignAdminQuote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: AssignQuoteAdminDto }) =>
+      adminService.assignQuoteAdmin(id, dto),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.admin.quote(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: ["admin", "quotes"] });
     },
   });
 }
@@ -193,7 +333,6 @@ export function useUpdateAdminProduct() {
       queryClient.invalidateQueries({ queryKey: ["products", "list"] });
       queryClient.invalidateQueries({ queryKey: ["products", "detail"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "inventory"] });
     },
   });
 }
@@ -208,7 +347,6 @@ export function useDeleteAdminProduct() {
       queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
       queryClient.invalidateQueries({ queryKey: ["products", "list"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "inventory"] });
     },
   });
 }
@@ -223,30 +361,6 @@ export function useToggleAdminProductActive() {
       queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
       queryClient.invalidateQueries({ queryKey: ["products", "list"] });
       queryClient.invalidateQueries({ queryKey: ["products", "detail"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
-    },
-  });
-}
-
-export function useAdminInventory(lowStockThreshold = 5) {
-  return useQuery({
-    queryKey: queryKeys.admin.inventory(lowStockThreshold),
-    queryFn: () => adminService.getInventoryOverview(lowStockThreshold),
-    staleTime: 2 * 60_000,
-  });
-}
-
-export function useUpdateAdminInventory() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ productId, dto }: { productId: string; dto: AdminUpdateInventoryDto }) =>
-      adminService.updateInventory(productId, dto),
-    onSuccess: (product) => {
-      queryClient.setQueryData(queryKeys.admin.product(product.id), product);
-      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
-      queryClient.invalidateQueries({ queryKey: ["products", "list"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "inventory"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
     },
   });
@@ -268,7 +382,18 @@ export function useUpdateAdminSettings() {
     onSuccess: (settings) => {
       queryClient.setQueryData(queryKeys.admin.settings(), settings);
       queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "inventory"] });
+    },
+  });
+}
+
+export function useUpdateAdminShopContact() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (dto: UpdateShopContactDto) => adminService.updateShopContact(dto),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.shopContact.public, updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.shopContact.public });
     },
   });
 }

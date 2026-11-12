@@ -35,7 +35,7 @@ public sealed class GlobalExceptionHandlerTests
     public async Task TryHandleAsync_MapsAuthenticationExceptionToUnauthorizedProblem()
     {
         var handler = new GlobalExceptionHandler(NullLogger<GlobalExceptionHandler>.Instance);
-        var context = CreateHttpContext("/api/cart/me");
+        var context = CreateHttpContext("/api/quotes/me");
 
         await handler.TryHandleAsync(
             context,
@@ -52,13 +52,14 @@ public sealed class GlobalExceptionHandlerTests
     }
 
     [Fact]
-    public async Task TryHandleAsync_SanitizesValidationMessages()
+    public async Task TryHandleAsync_MapsValidationMessagesAndFallsBackWhenBlank()
     {
         var handler = new GlobalExceptionHandler(NullLogger<GlobalExceptionHandler>.Instance);
         var context = CreateHttpContext("/api/product");
         var exception = new ValidationException(new[]
         {
-            new ValidationFailure("Sku", "raw sku failure")
+            new ValidationFailure("Sku", "Mã SKU không hợp lệ"),
+            new ValidationFailure("Name", " ")
         });
 
         await handler.TryHandleAsync(context, exception, CancellationToken.None);
@@ -67,10 +68,11 @@ public sealed class GlobalExceptionHandlerTests
         using var document = JsonDocument.Parse(body);
         var errors = document.RootElement.GetProperty("errors");
         var skuErrors = errors.GetProperty("Sku").EnumerateArray().Select(value => value.GetString()).ToArray();
+        var nameErrors = errors.GetProperty("Name").EnumerateArray().Select(value => value.GetString()).ToArray();
 
         Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
-        Assert.Contains(ClientErrorMessages.FieldInvalid, skuErrors);
-        Assert.DoesNotContain("raw sku failure", body);
+        Assert.Contains("Mã SKU không hợp lệ", skuErrors);
+        Assert.Contains(ClientErrorMessages.FieldInvalid, nameErrors);
     }
 
     private static DefaultHttpContext CreateHttpContext(string path)

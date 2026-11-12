@@ -8,7 +8,7 @@ namespace api.DTOs.order
     public class OrderItemDto
     {
         public string Id { get; set; } = string.Empty;
-        public string ProductId { get; set; } = string.Empty;
+        public string? ProductId { get; set; }
         public string? ProductVariantId { get; set; }
         public string ProductName { get; set; }
 
