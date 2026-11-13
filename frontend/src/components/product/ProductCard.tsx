@@ -1,7 +1,6 @@
 import { memo, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Icon } from "@iconify/react";
 import { useToast } from "../../context/toastContext";
 import { formatPrice } from "../../utils/formatPrice";
 import type { ProductSummaryDto } from "../../@types/product.type";
@@ -11,6 +10,7 @@ import { useToggleWishlist } from "../../hooks/useWishlist";
 import { queryKeys } from "../../lib/queryKeys";
 import { logger } from "../../lib/logger";
 import { openZaloProductConsult, resolveProductPricing } from "../../lib/productRfq";
+import ZaloIcon from "../common/ZaloIcon";
 import { ROUTES, routeTo } from "../../lib/routes";
 
 interface Props {
@@ -181,7 +181,7 @@ function ProductCard({ product: p, initialWished }: Props) {
         <div className="flex items-center justify-between gap-2 mb-4">
           <div className="flex flex-wrap items-baseline gap-1.5">
             <span className="text-xs text-lightText font-bodyFont">Giá từ</span>
-            <span className="text-[19px] font-bold text-[#1d4ed8] font-titleFont">
+            <span className="text-[19px] font-bold text-red-500 font-titleFont">
               {formatPrice(basePrice)}
             </span>
             {originalPrice && (
@@ -197,7 +197,7 @@ function ProductCard({ product: p, initialWished }: Props) {
           </div>
 
           {p.minOrderQuantity != null && p.minOrderQuantity > 1 && (
-            <span className="shrink-0 text-[10px] bg-blue-50 text-[#1d4ed8] px-2 py-0.5 font-semibold font-bodyFont">
+            <span className="shrink-0 text-[10px] bg-red-50 text-red-600 px-2 py-0.5 font-semibold font-bodyFont">
               Từ {p.minOrderQuantity} áo
             </span>
           )}
@@ -208,9 +208,9 @@ function ProductCard({ product: p, initialWished }: Props) {
             type="button"
             onClick={handleRequestQuote}
             className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold
-                       font-bodyFont tracking-[0.4px] text-white bg-[#1d4ed8] hover:bg-[#1e40af] transition-all duration-200"
+                       font-bodyFont tracking-[0.6px] text-white bg-primeColor hover:bg-gray-700
+                       transition-all duration-200"
           >
-            <Icon icon="lucide:clipboard-list" width={15} />
             Nhận báo giá
           </button>
 
@@ -218,12 +218,10 @@ function ProductCard({ product: p, initialWished }: Props) {
             type="button"
             onClick={handleZalo}
             className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold
-                       font-bodyFont tracking-[0.4px] text-[#0068ff] border border-[#0068ff] bg-white
-                       transition-all duration-200 hover:bg-blue-50"
+                       font-bodyFont tracking-[0.6px] text-white bg-[#0068ff] hover:bg-[#0057d9]
+                       transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
           >
-            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#0068ff] text-[8px] font-bold text-white">
-              Z
-            </span>
+            <ZaloIcon size={16} />
             Tư vấn Zalo
           </button>
         </div>

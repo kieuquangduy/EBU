@@ -1,15 +1,23 @@
 import { Icon } from "@iconify/react";
 import { Link } from "react-router-dom";
+import ZaloIcon from "../common/ZaloIcon";
 import { useShopContact } from "../../hooks/useShopContact";
 import { ROUTES } from "../../lib/routes";
-import { buildTelUrl, buildZaloUrl } from "../../services/shopContactService";
+import {
+  buildShopZaloUrl,
+  buildTelUrl,
+  resolveShopFacebookUrl,
+  resolveShopMessengerUrl,
+} from "../../services/shopContactService";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
   const { data: contact } = useShopContact();
 
-  const zaloUrl = buildZaloUrl(contact?.zaloPhone);
-  const telUrl = buildTelUrl(contact?.hotline);
+  const zaloUrl = buildShopZaloUrl(contact?.zaloPhone);
+  const telUrl = buildTelUrl(contact?.hotline || "0963 538 795");
+  const messengerUrl = resolveShopMessengerUrl(contact?.messengerLink);
+  const facebookUrl = resolveShopFacebookUrl(contact?.facebookLink);
 
   const quickLinks = [
     { title: "Hồ sơ của tôi", to: ROUTES.PROFILE },
@@ -102,30 +110,42 @@ const Footer = () => {
             <div>
               <h4 className="text-xl font-semibold mb-3">Tư vấn trực tiếp</h4>
               <p className="text-xs text-white/70 mb-4 leading-relaxed">
-                Trao đổi chất liệu vải, kỹ thuật in/thêu và nhận báo giá chi tiết qua Zalo hoặc Chat nội bộ.
+                Trao đổi chất liệu vải, mockup thiết kế và nhận báo giá chi tiết qua Zalo, Messenger hoặc Fanpage.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex flex-wrap gap-2.5 items-center">
               {zaloUrl && (
                 <a
                   href={zaloUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#0068ff] px-3.5 py-2 text-xs font-bold text-white transition hover:brightness-110"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#0068ff] px-3.5 py-2 text-xs font-bold text-white transition hover:brightness-110 shadow-xs"
                 >
+                  <ZaloIcon size={18} />
                   Zalo Tư vấn
                 </a>
               )}
-              {contact?.messengerLink && (
+              {messengerUrl && (
                 <a
-                  href={contact.messengerLink}
+                  href={messengerUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#0084ff] px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-110 shadow-xs"
                 >
-                  <Icon icon="mdi:facebook-messenger" width={16} />
+                  <Icon icon="mdi:facebook-messenger" width={17} />
                   Messenger
+                </a>
+              )}
+              {facebookUrl && (
+                <a
+                  href={facebookUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#1877f2] px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-110 shadow-xs"
+                >
+                  <Icon icon="mdi:facebook" width={17} />
+                  Fanpage Facebook
                 </a>
               )}
             </div>

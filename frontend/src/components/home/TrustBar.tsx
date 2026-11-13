@@ -1,4 +1,5 @@
 import { useScrollReveal } from "../../hooks/useScrollReveal";
+import ZaloIcon from "../common/ZaloIcon";
 
 const items = [
   {
@@ -33,11 +34,7 @@ const items = [
     sub: "Đóng gói chuẩn, giao đúng tiến độ cho nhóm lớp & tập thể.",
   },
   {
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="#EF233C" strokeWidth="1.5" className="w-6 h-6">
-        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-      </svg>
-    ),
+    icon: <ZaloIcon size={24} variant="blue" />,
     title: "Tư vấn 1-1 qua Zalo & Chat",
     sub: "Đội ngũ phản hồi nhanh, hỗ trợ chọn size & chất liệu.",
   },

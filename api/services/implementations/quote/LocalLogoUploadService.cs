@@ -10,11 +10,12 @@ namespace api.services.implementations.quote
     public partial class LocalLogoUploadService : ILogoUploadService
     {
         public const long MaxFileSizeBytes = 10 * 1024 * 1024; // 10MB
-        public const int MaxFilesPerUpload = 5;
+        public const int MaxFilesPerUpload = 10;
 
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            ".png", ".jpg", ".jpeg", ".svg", ".pdf", ".ai"
+            ".png", ".jpg", ".jpeg", ".svg", ".pdf", ".ai",
+            ".xlsx", ".xls", ".docx", ".doc"
         };
 
         private static readonly HashSet<string> DangerousSvgElements = new(StringComparer.OrdinalIgnoreCase)
@@ -67,7 +68,7 @@ namespace api.services.implementations.quote
                 var ext = Path.GetExtension(originalName).ToLowerInvariant();
                 if (!AllowedExtensions.Contains(ext))
                 {
-                    throw new ArgumentException("Định dạng file không được hỗ trợ (chỉ nhận png, jpg, svg, pdf, ai).");
+                    throw new ArgumentException("Định dạng file không được hỗ trợ (chỉ nhận png, jpg, svg, pdf, ai, xlsx, xls, docx, doc).");
                 }
 
                 await using var inputStream = file.OpenReadStream();
@@ -130,6 +131,10 @@ namespace api.services.implementations.quote
                 ".svg" => "image/svg+xml",
                 ".pdf" => "application/pdf",
                 ".ai" => "application/postscript",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".xls" => "application/vnd.ms-excel",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".doc" => "application/msword",
                 _ => "application/octet-stream"
             };
 
@@ -232,6 +237,12 @@ namespace api.services.implementations.quote
 
                 ".ai" => StartsWithAscii(bytes, "%PDF-") || StartsWithAscii(bytes, "%!PS-Adobe"),
 
+                ".docx" or ".xlsx" => bytes.Length >= 4 &&
+                                      bytes[0] == 0x50 && bytes[1] == 0x4B,
+
+                ".doc" or ".xls" => bytes.Length >= 8 &&
+                                    bytes[0] == 0xD0 && bytes[1] == 0xCF && bytes[2] == 0x11 && bytes[3] == 0xE0,
+
                 _ => false
             };
         }
@@ -268,7 +279,7 @@ namespace api.services.implementations.quote
             return clean.Length > 120 ? clean[..120] : clean;
         }
 
-        [GeneratedRegex(@"^[a-f0-9]{32}\.(png|jpg|jpeg|svg|pdf|ai)$", RegexOptions.IgnoreCase)]
+        [GeneratedRegex(@"^[a-f0-9]{32}\.(png|jpg|jpeg|svg|pdf|ai|xlsx|xls|docx|doc)$", RegexOptions.IgnoreCase)]
         private static partial Regex SafeStoredNameRegex();
     }
 }

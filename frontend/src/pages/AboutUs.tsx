@@ -114,12 +114,8 @@ const AboutUs = () => {
 
           <div className="grid grid-cols-1 items-center gap-7 lg:grid-cols-12">
             <div className="lg:col-span-7">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-semibold text-red-500 shadow-sm">
-                <Icon icon="lucide:sparkles" className="text-sm" />
-                HauShop Custom Apparel Studio
-              </div>
 
-              <h1 className="mt-3 font-titleFont text-2xl font-bold leading-tight text-primeColor sm:text-4xl">
+              <h1 className="mt-1 font-titleFont text-2xl font-bold leading-tight text-primeColor sm:text-4xl">
                 May &amp; in áo custom{" "}
                 <span className="text-red-500">chỉnh chu từ phôi vải đến từng chi tiết</span>
               </h1>

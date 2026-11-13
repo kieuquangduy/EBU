@@ -72,6 +72,7 @@ namespace api.Tests.Rfq
             {
                 CustomerName = "Bot User",
                 Phone = "12345",
+                Email = "bot@example.com",
                 Quantity = 20,
                 SizeBreakdown = new Dictionary<string, int> { ["M"] = 10, ["L"] = 5 },
                 ExpectedDeliveryDate = DateTime.UtcNow.Date.AddDays(-1),

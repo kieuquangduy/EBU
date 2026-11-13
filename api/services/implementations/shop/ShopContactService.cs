@@ -29,12 +29,36 @@ namespace api.services.implementations.shop
                 async token =>
                 {
                     var entity = await _context.ShopContacts
-                        .AsNoTracking()
                         .FirstOrDefaultAsync(x => x.Id == DefaultContactId, token);
 
                     if (entity is null)
                     {
                         entity = await CreateDefaultContactAsync(token);
+                    }
+                    else
+                    {
+                        bool changed = false;
+                        if (entity.ZaloPhone == "0900000000" || string.IsNullOrWhiteSpace(entity.ZaloPhone))
+                        {
+                            entity.ZaloPhone = "0963538795";
+                            if (string.IsNullOrWhiteSpace(entity.Hotline) || entity.Hotline == "0900 000 000")
+                            {
+                                entity.Hotline = "0963 538 795";
+                            }
+                            changed = true;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(entity.MessengerLink))
+                        {
+                            entity.MessengerLink = "https://m.me/61596220172115";
+                            changed = true;
+                        }
+
+                        if (changed)
+                        {
+                            entity.UpdatedAt = DateTime.UtcNow;
+                            await _context.SaveChangesAsync(token);
+                        }
                     }
 
                     return MapToDto(entity);
@@ -73,18 +97,22 @@ namespace api.services.implementations.shop
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == DefaultContactId, ct);
 
+            const string defaultPhone = "0963538795";
+            const string defaultHotline = "0963 538 795";
+
             var entity = new ShopContact
             {
                 Id = DefaultContactId,
-                ZaloPhone = NormalizeZaloPhone(adminSettings?.SupportPhone) is { Length: > 0 } phone
+                ZaloPhone = NormalizeZaloPhone(adminSettings?.SupportPhone) is { Length: > 0 } phone && phone != "0900000000"
                     ? phone
-                    : "0900000000",
-                Hotline = string.IsNullOrWhiteSpace(adminSettings?.SupportPhone)
-                    ? "0900 000 000"
+                    : defaultPhone,
+                Hotline = string.IsNullOrWhiteSpace(adminSettings?.SupportPhone) || adminSettings.SupportPhone.Contains("0900")
+                    ? defaultHotline
                     : adminSettings.SupportPhone.Trim(),
                 Email = string.IsNullOrWhiteSpace(adminSettings?.SupportEmail)
                     ? "contact@haushop.vn"
                     : adminSettings.SupportEmail.Trim(),
+                MessengerLink = "https://m.me/61596220172115",
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -107,16 +135,24 @@ namespace api.services.implementations.shop
         public static ShopContactDto MapToDto(ShopContact entity)
         {
             var normalizedZalo = NormalizeZaloPhone(entity.ZaloPhone);
+            if (string.IsNullOrEmpty(normalizedZalo) || normalizedZalo == "0900000000")
+            {
+                normalizedZalo = "0963538795";
+            }
+
             return new ShopContactDto
             {
                 ZaloPhone = normalizedZalo,
-                ZaloLink = string.IsNullOrEmpty(normalizedZalo)
-                    ? string.Empty
-                    : $"https://zalo.me/{normalizedZalo}",
+                ZaloLink = $"https://zalo.me/{normalizedZalo}",
                 ZaloOAId = entity.ZaloOAId,
-                Hotline = entity.Hotline,
+                Hotline = string.IsNullOrWhiteSpace(entity.Hotline) || entity.Hotline.Contains("0900")
+                    ? "0963 538 795"
+                    : entity.Hotline,
                 Email = entity.Email,
-                MessengerLink = entity.MessengerLink,
+                MessengerLink = string.IsNullOrWhiteSpace(entity.MessengerLink)
+                    ? "https://m.me/61596220172115"
+                    : entity.MessengerLink,
+                FacebookLink = "https://www.facebook.com/profile.php?id=61596220172115",
                 WorkingHours = entity.WorkingHours,
                 UpdatedAt = entity.UpdatedAt ?? entity.CreatedAt
             };

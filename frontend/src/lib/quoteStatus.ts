@@ -95,3 +95,50 @@ export function formatPrintTechnique(technique: PrintTechnique): string {
   return PRINT_TECHNIQUE_LABELS[technique] ?? technique;
 }
 
+export type UserStatusGroup = "" | "pending" | "accepted" | "completed" | "cancelled";
+
+export const USER_STATUS_TABS: ReadonlyArray<{ value: UserStatusGroup; label: string }> = [
+  { value: "", label: "Tất cả" },
+  { value: "pending", label: "Chờ xử lý" },
+  { value: "accepted", label: "Đã chốt" },
+  { value: "completed", label: "Hoàn tất" },
+  { value: "cancelled", label: "Đã hủy" },
+];
+
+export function getUserStatusBadge(status: QuoteStatus): {
+  label: string;
+  badgeClass: string;
+} {
+  switch (status) {
+    case "Pending":
+    case "Contacted":
+    case "Quoted":
+      return {
+        label: "Chờ xử lý",
+        badgeClass: "bg-amber-50 text-amber-800 border border-amber-200",
+      };
+    case "Accepted":
+    case "InProduction":
+      return {
+        label: "Đã chốt",
+        badgeClass: "bg-blue-50 text-blue-800 border border-blue-200",
+      };
+    case "Completed":
+      return {
+        label: "Hoàn tất",
+        badgeClass: "bg-emerald-50 text-emerald-800 border border-emerald-200",
+      };
+    case "Cancelled":
+    case "Rejected":
+      return {
+        label: "Đã hủy",
+        badgeClass: "bg-gray-100 text-gray-600 border border-gray-200",
+      };
+    default:
+      return {
+        label: status,
+        badgeClass: "bg-gray-100 text-gray-700 border border-gray-200",
+      };
+  }
+}
+

@@ -8,36 +8,25 @@ import type { ProductDto } from "../../@types/product.type";
 import type {
   CreateQuoteRequestResultDto,
   LogoFileRefDto,
-  PrintTechnique,
 } from "../../@types/quoteRequest.type";
 import { useToast } from "../../context/toastContext";
 import { useAuth } from "../../hooks/useAuth";
 import { useCreateQuoteRequest, useUploadQuoteLogos } from "../../hooks/useQuoteRequests";
-import { PRINT_TECHNIQUE_OPTIONS } from "../../lib/quoteStatus";
 import { routeTo } from "../../lib/routes";
 import { resolveProductPricing } from "../../lib/productRfq";
 import { formatPrice } from "../../utils/formatPrice";
 
-const SIZES = ["S", "M", "L", "XL", "2XL", "3XL"] as const;
-const MAX_LOGO_FILES = 5;
-const MAX_LOGO_SIZE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_LOGO_EXT_REGEX = /\.(png|jpe?g|svg|pdf|ai)$/i;
+const MAX_FILES_PER_STREAM = 5;
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_DESIGN_EXT_REGEX = /\.(png|jpe?g|svg|webp|ai)$/i;
+const ALLOWED_SIZE_DOC_EXT_REGEX = /\.(xlsx?|docx?|pdf)$/i;
 const VN_PHONE_REGEX = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
-
-const PRINT_TECHNIQUE_VALUES = [
-  "ScreenPrint",
-  "HeatTransfer",
-  "DtfPrint",
-  "Decal",
-  "Embroidery",
-  "Sublimation",
-  "Other",
-] as const;
 
 interface QuoteRequestModalProps {
   open: boolean;
   onClose: () => void;
   product?: ProductDto | null;
+  initialQuantity?: number;
   onSuccess?: (result: CreateQuoteRequestResultDto) => void;
 }
 
@@ -60,18 +49,16 @@ function createQuoteSchema(minQty: number) {
     email: z
       .string()
       .trim()
-      .refine((val) => !val || z.string().email().safeParse(val).success, "Email không hợp lệ.")
-      .optional(),
+      .min(1, "Vui lòng nhập email.")
+      .email("Email không hợp lệ.")
+      .max(200, "Email tối đa 200 ký tự."),
     organizationName: z.string().trim().max(150, "Tên đơn vị tối đa 150 ký tự.").optional(),
     quantity: z
       .number({ message: "Vui lòng nhập số lượng." })
       .int("Số lượng phải là số nguyên.")
       .min(minQty, `Số lượng tối thiểu là ${minQty} áo.`)
       .max(100000, "Số lượng tối đa 100.000."),
-    material: z.string().trim().max(100, "Chất liệu tối đa 100 ký tự.").optional(),
-    printTechnique: z.enum(PRINT_TECHNIQUE_VALUES),
     colorSelection: z.string().trim().max(150, "Màu sắc tối đa 150 ký tự.").optional(),
-    expectedDeliveryDate: z.string().optional(),
     note: z.string().trim().max(2000, "Ghi chú tối đa 2000 ký tự.").optional(),
     website: z.string().optional(),
   });
@@ -79,52 +66,86 @@ function createQuoteSchema(minQty: number) {
 
 type QuoteFormValues = z.infer<ReturnType<typeof createQuoteSchema>>;
 
-function normalizeInitialPrintTechnique(product?: ProductDto | null): PrintTechnique {
-  const first = product?.availablePrintTechniques?.[0];
-  if (!first) return "ScreenPrint";
-  const found = PRINT_TECHNIQUE_VALUES.find((v) => v.toLowerCase() === first.toLowerCase());
-  if (found) return found;
-  const byLabel = PRINT_TECHNIQUE_OPTIONS.find(
-    (opt) => opt.label.toLowerCase() === first.toLowerCase()
-  );
-  return byLabel?.value ?? "ScreenPrint";
-}
-
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getFileBadge(fileName: string) {
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "xlsx" || ext === "xls") {
+    return {
+      label: "EXCEL",
+      bgClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      icon: "mdi:file-excel-box",
+    };
+  }
+  if (ext === "docx" || ext === "doc") {
+    return {
+      label: "WORD",
+      bgClass: "bg-blue-50 text-blue-700 border-blue-200",
+      icon: "mdi:file-word-box",
+    };
+  }
+  if (ext === "pdf") {
+    return {
+      label: "PDF",
+      bgClass: "bg-red-50 text-red-700 border-red-200",
+      icon: "mdi:file-pdf-box",
+    };
+  }
+  if (ext === "ai") {
+    return {
+      label: "AI",
+      bgClass: "bg-amber-50 text-amber-800 border-amber-200",
+      icon: "mdi:vector-bezier",
+    };
+  }
+  return {
+    label: ext.toUpperCase() || "FILE",
+    bgClass: "bg-slate-50 text-slate-700 border-slate-200",
+    icon: "mdi:file-document-outline",
+  };
+}
+
 export default function QuoteRequestModal({
   open,
   onClose,
   product,
+  initialQuantity,
   onSuccess,
 }: QuoteRequestModalProps) {
   const { user, isAuthenticated } = useAuth();
   const { showToast } = useToast();
   const createQuoteMutation = useCreateQuoteRequest();
   const uploadLogosMutation = useUploadQuoteLogos();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const designInputRef = useRef<HTMLInputElement>(null);
+  const sizeDocInputRef = useRef<HTMLInputElement>(null);
 
   const minQty = product?.minOrderQuantity && product.minOrderQuantity > 1 ? product.minOrderQuantity : 1;
+  const startingQty =
+    initialQuantity && initialQuantity > 0 ? Math.max(minQty, initialQuantity) : minQty;
   const schema = useMemo(() => createQuoteSchema(minQty), [minQty]);
 
-  const [sizeBreakdown, setSizeBreakdown] = useState<Record<string, number>>(() =>
-    Object.fromEntries(SIZES.map((s) => [s, 0]))
-  );
-  const [logos, setLogos] = useState<UploadedLogoItem[]>([]);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  // Luồng 1: Upload ảnh logo / mockup custom
+  const [designFiles, setDesignFiles] = useState<UploadedLogoItem[]>([]);
+  const [designError, setDesignError] = useState<string | null>(null);
+  const [dragActiveDesign, setDragActiveDesign] = useState(false);
+
+  // Luồng 2: Upload file kích thước & size áo (Word / Excel / PDF)
+  const [sizeFiles, setSizeFiles] = useState<UploadedLogoItem[]>([]);
+  const [sizeError, setSizeError] = useState<string | null>(null);
+  const [dragActiveSize, setDragActiveSize] = useState(false);
+
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
   const [createdResult, setCreatedResult] = useState<CreateQuoteRequestResultDto | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<QuoteFormValues>({
     resolver: zodResolver(schema),
@@ -133,29 +154,14 @@ export default function QuoteRequestModal({
       phone: "",
       email: "",
       organizationName: "",
-      quantity: minQty,
-      material: product?.availableMaterials?.[0] ?? "",
-      printTechnique: normalizeInitialPrintTechnique(product),
+      quantity: startingQty,
       colorSelection: "",
-      expectedDeliveryDate: "",
       note: "",
       website: "",
     },
   });
 
-  const sizeTotal = useMemo(
-    () => Object.values(sizeBreakdown).reduce((sum, count) => sum + (Number.isFinite(count) ? count : 0), 0),
-    [sizeBreakdown]
-  );
-
-  // Sync size matrix sum into quantity whenever user fills size counts
-  useEffect(() => {
-    if (sizeTotal > 0) {
-      setValue("quantity", sizeTotal, { shouldValidate: true });
-    }
-  }, [sizeTotal, setValue]);
-
-  // Reset modal form and revoke previews when opened for a product/user
+  // Reset form state when opened
   useEffect(() => {
     if (!open) return;
 
@@ -165,58 +171,53 @@ export default function QuoteRequestModal({
       phone: user?.phoneNumber ?? "",
       email: user?.email ?? "",
       organizationName: "",
-      quantity: minQty,
-      material: product?.availableMaterials?.[0] ?? "",
-      printTechnique: normalizeInitialPrintTechnique(product),
+      quantity: startingQty,
       colorSelection: "",
-      expectedDeliveryDate: "",
       note: "",
       website: "",
     });
-    setSizeBreakdown(Object.fromEntries(SIZES.map((s) => [s, 0])));
-    setUploadError(null);
+    setDesignError(null);
+    setSizeError(null);
     setSubmitError(null);
     setCreatedResult(null);
-    setLogos((prev) => {
+
+    setDesignFiles((prev) => {
       prev.forEach((item) => {
         if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       });
       return [];
     });
-  }, [open, product, minQty, user, reset]);
+    setSizeFiles([]);
+  }, [open, product, minQty, user, reset, startingQty]);
 
   useEffect(() => {
     return () => {
-      logos.forEach((item) => {
+      designFiles.forEach((item) => {
         if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       });
     };
-  }, [logos]);
+  }, [designFiles]);
 
   if (!open) return null;
 
-  const handleSizeChange = (size: string, raw: string) => {
-    const parsed = Math.max(0, Math.min(100000, Math.floor(Number(raw) || 0)));
-    setSizeBreakdown((prev) => ({ ...prev, [size]: parsed }));
-  };
-
-  const handleFilesSelected = async (fileList: FileList | null) => {
+  // Xử lý upload ảnh logo / mockup custom
+  const handleDesignFilesSelected = async (fileList: FileList | null) => {
     if (!fileList?.length) return;
-    setUploadError(null);
+    setDesignError(null);
 
     const incoming = Array.from(fileList);
-    if (logos.length + incoming.length > MAX_LOGO_FILES) {
-      setUploadError(`Chỉ hỗ trợ tối đa ${MAX_LOGO_FILES} file logo/thiết kế.`);
+    if (designFiles.length + incoming.length > MAX_FILES_PER_STREAM) {
+      setDesignError(`Chỉ hỗ trợ tối đa ${MAX_FILES_PER_STREAM} ảnh thiết kế/logo.`);
       return;
     }
 
     for (const file of incoming) {
-      if (!ALLOWED_LOGO_EXT_REGEX.test(file.name)) {
-        setUploadError(`File "${file.name}" không hợp lệ. Chỉ nhận PNG, JPG, SVG, PDF hoặc AI.`);
+      if (!ALLOWED_DESIGN_EXT_REGEX.test(file.name)) {
+        setDesignError(`File "${file.name}" không hợp lệ. Chỉ nhận ảnh (PNG, JPG, JPEG, SVG, WebP, AI).`);
         return;
       }
-      if (file.size > MAX_LOGO_SIZE_BYTES) {
-        setUploadError(`File "${file.name}" vượt quá giới hạn 10MB.`);
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setDesignError(`File "${file.name}" vượt quá giới hạn 10MB.`);
         return;
       }
     }
@@ -225,56 +226,96 @@ export default function QuoteRequestModal({
       const uploadedRefs = await uploadLogosMutation.mutateAsync(incoming);
       const nextItems: UploadedLogoItem[] = uploadedRefs.map((ref, idx) => {
         const file = incoming[idx];
-        const isImage =
-          file && (file.type.startsWith("image/") || /\.(png|jpe?g|svg)$/i.test(file.name));
+        const isImage = file && (file.type.startsWith("image/") || /\.(png|jpe?g|svg|webp)$/i.test(file.name));
         return {
           ref,
           previewUrl: isImage ? URL.createObjectURL(file) : null,
         };
       });
-      setLogos((prev) => [...prev, ...nextItems]);
+      setDesignFiles((prev) => [...prev, ...nextItems]);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Không thể tải file logo lên.");
+      setDesignError(err instanceof Error ? err.message : "Không thể tải ảnh thiết kế lên.");
     } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+      if (designInputRef.current) {
+        designInputRef.current.value = "";
       }
     }
   };
 
-  const removeLogo = (fileName: string) => {
-    setLogos((prev) => {
+  // Xử lý upload file kích thước áo (Word / Excel / PDF)
+  const handleSizeFilesSelected = async (fileList: FileList | null) => {
+    if (!fileList?.length) return;
+    setSizeError(null);
+
+    const incoming = Array.from(fileList);
+    if (sizeFiles.length + incoming.length > MAX_FILES_PER_STREAM) {
+      setSizeError(`Chỉ hỗ trợ tối đa ${MAX_FILES_PER_STREAM} file danh sách size.`);
+      return;
+    }
+
+    for (const file of incoming) {
+      if (!ALLOWED_SIZE_DOC_EXT_REGEX.test(file.name)) {
+        setSizeError(`File "${file.name}" không hợp lệ. Vui lòng chọn file Word (.docx, .doc), Excel (.xlsx, .xls) hoặc PDF.`);
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setSizeError(`File "${file.name}" vượt quá giới hạn 10MB.`);
+        return;
+      }
+    }
+
+    try {
+      const uploadedRefs = await uploadLogosMutation.mutateAsync(incoming);
+      const nextItems: UploadedLogoItem[] = uploadedRefs.map((ref) => ({
+        ref,
+        previewUrl: null,
+      }));
+      setSizeFiles((prev) => [...prev, ...nextItems]);
+    } catch (err) {
+      setSizeError(err instanceof Error ? err.message : "Không thể tải file kích thước lên.");
+    } finally {
+      if (sizeDocInputRef.current) {
+        sizeDocInputRef.current.value = "";
+      }
+    }
+  };
+
+  const removeDesignFile = (fileName: string) => {
+    setDesignFiles((prev) => {
       const removed = prev.find((item) => item.ref.fileName === fileName);
       if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
       return prev.filter((item) => item.ref.fileName !== fileName);
     });
   };
 
+  const removeSizeFile = (fileName: string) => {
+    setSizeFiles((prev) => prev.filter((item) => item.ref.fileName !== fileName));
+  };
+
   const onSubmit = async (values: QuoteFormValues) => {
     setSubmitError(null);
 
-    const activeSizes = Object.fromEntries(
-      Object.entries(sizeBreakdown).filter(([, qty]) => qty > 0)
-    );
+    const combinedLogoFiles = [
+      ...designFiles.map((d) => d.ref),
+      ...sizeFiles.map((s) => s.ref),
+    ];
 
     try {
       const result = await createQuoteMutation.mutateAsync({
         productId: product?.id ?? null,
-        customerName: values.customerName,
-        phone: values.phone,
-        email: values.email || null,
-        organizationName: values.organizationName || null,
-        quantity: values.quantity,
-        material: values.material || null,
-        printTechnique: values.printTechnique,
-        sizeBreakdown: Object.keys(activeSizes).length > 0 ? activeSizes : null,
-        colorSelection: values.colorSelection || null,
-        logoFiles: logos.length > 0 ? logos.map((l) => l.ref) : null,
-        note: values.note || null,
-        expectedDeliveryDate: values.expectedDeliveryDate
-          ? new Date(`${values.expectedDeliveryDate}T00:00:00Z`).toISOString()
-          : null,
-        website: values.website || null,
+        customerName: values.customerName.trim(),
+        phone: values.phone.trim(),
+        email: values.email.trim(),
+        organizationName: values.organizationName?.trim() || null,
+        quantity: Number(values.quantity),
+        material: null,
+        printTechnique: undefined,
+        sizeBreakdown: null,
+        colorSelection: values.colorSelection?.trim() || null,
+        logoFiles: combinedLogoFiles.length > 0 ? combinedLogoFiles : null,
+        note: values.note?.trim() || null,
+        expectedDeliveryDate: null,
+        website: values.website?.trim() || null,
       });
 
       setCreatedResult(result);
@@ -296,31 +337,25 @@ export default function QuoteRequestModal({
   };
 
   const pricing = product ? resolveProductPricing(product) : null;
-  const minDateString = new Date().toISOString().split("T")[0];
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 sm:p-5 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-5 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
-        className="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-md bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 sm:px-6">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1d4ed8]">
-              Request For Quotation
-            </p>
-            <h2 className="font-titleFont text-lg sm:text-xl font-bold text-primeColor">
-              {createdResult ? "Đã tiếp nhận yêu cầu báo giá" : "Gửi yêu cầu báo giá áo Custom"}
-            </h2>
-          </div>
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 sm:px-6 bg-white">
+          <h2 className="font-titleFont text-lg sm:text-xl font-bold text-primeColor">
+            {createdResult ? "Đã tiếp nhận yêu cầu báo giá" : "Gửi yêu cầu báo giá áo Custom"}
+          </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-black"
+            className="rounded-md p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-black"
           >
             <Icon icon="mdi:close" width={20} />
           </button>
@@ -339,18 +374,18 @@ export default function QuoteRequestModal({
                 </p>
               </div>
 
-              <div className="mx-auto max-w-md rounded-xl border border-blue-200 bg-[#eff6ff] p-4">
+              <div className="mx-auto max-w-md rounded-md border border-gray-200 bg-gray-50 p-4">
                 <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
                   Mã yêu cầu của bạn
                 </p>
                 <div className="mt-2 flex items-center justify-center gap-3">
-                  <span className="font-mono text-xl font-bold text-[#1d4ed8]">
+                  <span className="font-mono text-xl font-bold text-primeColor">
                     {createdResult.quoteCode}
                   </span>
                   <button
                     type="button"
                     onClick={copyQuoteCode}
-                    className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2.5 py-1 text-xs font-semibold text-[#1d4ed8] hover:bg-blue-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-primeColor hover:bg-gray-100"
                   >
                     <Icon icon="mdi:content-copy" width={14} />
                     Sao chép
@@ -363,7 +398,7 @@ export default function QuoteRequestModal({
                   <Link
                     to={routeTo.quote(createdResult.id)}
                     onClick={onClose}
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#1d4ed8] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1e40af]"
+                    className="inline-flex items-center gap-2 rounded-md bg-primeColor px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 transition"
                   >
                     Xem chi tiết báo giá
                   </Link>
@@ -375,14 +410,14 @@ export default function QuoteRequestModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-primeColor hover:bg-gray-50"
+                  className="rounded-md border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-primeColor hover:bg-gray-50"
                 >
                   Đóng
                 </button>
               </div>
             </div>
           ) : (
-            <form id="rfq-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <form id="rfq-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               {/* Hidden honeypot against bots */}
               <input
                 type="text"
@@ -394,12 +429,12 @@ export default function QuoteRequestModal({
               />
 
               {product && pricing && (
-                <div className="flex items-center gap-4 rounded-xl border border-blue-100 bg-[#eff6ff] p-3.5">
+                <div className="flex items-center gap-4 rounded-md border border-gray-200 bg-gray-50 p-3.5">
                   {product.imageUrl && (
                     <img
                       src={product.imageUrl}
                       alt={product.name}
-                      className="h-14 w-14 rounded-lg border border-white object-cover shadow-sm"
+                      className="h-14 w-14 rounded-md border border-gray-200 object-cover shadow-xs"
                     />
                   )}
                   <div className="min-w-0 flex-1">
@@ -407,13 +442,14 @@ export default function QuoteRequestModal({
                       Mẫu áo tham khảo
                     </p>
                     <p className="truncate font-semibold text-primeColor">{product.name}</p>
-                    <p className="text-xs text-[#1d4ed8]">
+                    <p className="text-xs font-semibold text-red-500">
                       Giá tham khảo từ {formatPrice(pricing.basePrice)} · Tối thiểu {minQty} áo
                     </p>
                   </div>
                 </div>
               )}
 
+              {/* Form grid 2 cột đều cho 6 trường thông tin cơ bản */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-700">
@@ -422,7 +458,7 @@ export default function QuoteRequestModal({
                   <input
                     {...register("customerName")}
                     placeholder="Nguyễn Văn A"
-                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
+                    className="w-full rounded-md border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-primeColor focus:ring-1 focus:ring-primeColor"
                   />
                   {errors.customerName && (
                     <p className="mt-1 text-xs text-red-600">{errors.customerName.message}</p>
@@ -436,7 +472,7 @@ export default function QuoteRequestModal({
                   <input
                     {...register("phone")}
                     placeholder="0912345678"
-                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
+                    className="w-full rounded-md border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-primeColor focus:ring-1 focus:ring-primeColor"
                   />
                   {errors.phone && (
                     <p className="mt-1 text-xs text-red-600">{errors.phone.message}</p>
@@ -444,12 +480,14 @@ export default function QuoteRequestModal({
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">Email</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+                    Email <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="email"
                     {...register("email")}
                     placeholder="email@congty.vn"
-                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
+                    className="w-full rounded-md border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-primeColor focus:ring-1 focus:ring-primeColor"
                   />
                   {errors.email && (
                     <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>
@@ -463,46 +501,13 @@ export default function QuoteRequestModal({
                   <input
                     {...register("organizationName")}
                     placeholder="VD: CLB Truyền thông / Công ty ABC"
-                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
+                    className="w-full rounded-md border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-primeColor focus:ring-1 focus:ring-primeColor"
                   />
                   {errors.organizationName && (
                     <p className="mt-1 text-xs text-red-600">{errors.organizationName.message}</p>
                   )}
                 </div>
-              </div>
 
-              <div className="rounded-xl border border-gray-200 bg-slate-50/70 p-4">
-                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Bảng chia size (tùy chọn)
-                  </span>
-                  <span className="text-xs text-slate-500">
-                    {sizeTotal > 0
-                      ? `Tổng từ size: ${sizeTotal} áo`
-                      : "Bỏ trống nếu chưa chốt danh sách size"}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
-                  {SIZES.map((size) => (
-                    <label
-                      key={size}
-                      className="flex flex-col rounded-lg border border-gray-200 bg-white px-2.5 py-2"
-                    >
-                      <span className="text-[11px] font-semibold text-slate-500">{size}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={sizeBreakdown[size] || ""}
-                        onChange={(e) => handleSizeChange(size, e.target.value)}
-                        placeholder="0"
-                        className="mt-1 w-full text-sm font-semibold text-primeColor outline-none"
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-3">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-700">
                     Tổng số lượng <span className="text-red-500">*</span>
@@ -510,11 +515,8 @@ export default function QuoteRequestModal({
                   <input
                     type="number"
                     min={minQty}
-                    readOnly={sizeTotal > 0}
                     {...register("quantity", { valueAsNumber: true })}
-                    className={`w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8] ${
-                      sizeTotal > 0 ? "bg-slate-100 text-slate-700" : "bg-white"
-                    }`}
+                    className="w-full rounded-md border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-primeColor focus:ring-1 focus:ring-primeColor bg-white"
                   />
                   {errors.quantity && (
                     <p className="mt-1 text-xs text-red-600">{errors.quantity.message}</p>
@@ -523,172 +525,222 @@ export default function QuoteRequestModal({
 
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-                    Chất liệu vải
-                  </label>
-                  {product?.availableMaterials && product.availableMaterials.length > 0 ? (
-                    <select
-                      {...register("material")}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
-                    >
-                      {product.availableMaterials.map((mat) => (
-                        <option key={mat} value={mat}>
-                          {mat}
-                        </option>
-                      ))}
-                      <option value="Tư vấn thêm">Cần tư vấn thêm</option>
-                    </select>
-                  ) : (
-                    <input
-                      {...register("material")}
-                      placeholder="Cotton 100%, Cá sấu, Poly..."
-                      className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
-                    />
-                  )}
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-                    Kỹ thuật in / thêu <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    {...register("printTechnique")}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
-                  >
-                    {PRINT_TECHNIQUE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">
                     Màu sắc mong muốn
                   </label>
                   <input
                     {...register("colorSelection")}
                     placeholder="VD: Đen phối bo cổ trắng, Xanh navy..."
-                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-                    Ngày cần nhận hàng dự kiến
-                  </label>
-                  <input
-                    type="date"
-                    min={minDateString}
-                    {...register("expectedDeliveryDate")}
-                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
+                    className="w-full rounded-md border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-primeColor focus:ring-1 focus:ring-primeColor"
                   />
                 </div>
               </div>
 
+              {/* Phần ghi chú - Hàng ngang full-width (không grid col) */}
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-                  File logo / ý tưởng thiết kế (tối đa {MAX_LOGO_FILES} file, ≤ 10MB/file)
-                </label>
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragActive(true);
-                  }}
-                  onDragLeave={() => setDragActive(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragActive(false);
-                    void handleFilesSelected(e.dataTransfer.files);
-                  }}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`cursor-pointer rounded-xl border-2 border-dashed px-4 py-5 text-center transition ${
-                    dragActive
-                      ? "border-[#1d4ed8] bg-blue-50"
-                      : "border-gray-300 bg-slate-50/50 hover:border-[#1d4ed8]"
-                  }`}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".png,.jpg,.jpeg,.svg,.pdf,.ai"
-                    className="hidden"
-                    onChange={(e) => void handleFilesSelected(e.target.files)}
-                  />
-                  <Icon
-                    icon={uploadLogosMutation.isPending ? "mdi:loading" : "mdi:cloud-upload-outline"}
-                    width={28}
-                    className={`mx-auto text-[#1d4ed8] ${uploadLogosMutation.isPending ? "animate-spin" : ""}`}
-                  />
-                  <p className="mt-1.5 text-sm font-medium text-primeColor">
-                    {uploadLogosMutation.isPending
-                      ? "Đang tải file lên..."
-                      : "Kéo thả hoặc nhấn chọn file logo (PNG, JPG, SVG, PDF, AI)"}
-                  </p>
-                </div>
-
-                {uploadError && <p className="mt-1.5 text-xs text-red-600">{uploadError}</p>}
-
-                {logos.length > 0 && (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {logos.map(({ ref, previewUrl }) => (
-                      <div
-                        key={ref.fileName}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2"
-                      >
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          {previewUrl ? (
-                            <img
-                              src={previewUrl}
-                              alt={ref.originalName}
-                              className="h-10 w-10 shrink-0 rounded object-cover border border-gray-100"
-                            />
-                          ) : (
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-slate-100 text-xs font-bold uppercase text-slate-600">
-                              {ref.originalName.split(".").pop() ?? "FILE"}
-                            </span>
-                          )}
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-primeColor">
-                              {ref.originalName}
-                            </p>
-                            <p className="text-[11px] text-slate-500">
-                              {formatFileSize(ref.sizeBytes)}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeLogo(ref.fileName)}
-                          aria-label="Xóa file"
-                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Icon icon="mdi:trash-can-outline" width={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-                  Ghi chú vị trí in / yêu cầu thêm
+                  Ghi chú vị trí in &amp; yêu cầu riêng
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   {...register("note")}
-                  placeholder="VD: In logo trước ngực trái 8cm, sau lưng in slogan, cần xuất hóa đơn VAT..."
-                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-[#1d4ed8]"
+                  placeholder="VD: In logo trước ngực trái 8cm, sau lưng in slogan, đóng gói túi zip riêng từng áo, xuất hóa đơn VAT..."
+                  className="w-full rounded-md border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-primeColor focus:ring-1 focus:ring-primeColor"
                 />
                 {errors.note && <p className="mt-1 text-xs text-red-600">{errors.note.message}</p>}
               </div>
 
+              {/* Phần 1: Tải ảnh logo / Mẫu áo thiết kế custom - Hàng ngang full-width */}
+              <div className="rounded-md border border-gray-200 bg-gray-50/60 p-3.5">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Icon icon="mdi:image-outline" className="text-primeColor" width={18} />
+                    <label className="text-xs font-bold text-primeColor">
+                      Ảnh Logo / Mẫu áo thiết kế custom
+                    </label>
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    {designFiles.length}/{MAX_FILES_PER_STREAM} ảnh · PNG, JPG, JPEG, SVG, WebP, AI (≤ 10MB)
+                  </span>
+                </div>
+
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragActiveDesign(true);
+                  }}
+                  onDragLeave={() => setDragActiveDesign(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragActiveDesign(false);
+                    void handleDesignFilesSelected(e.dataTransfer.files);
+                  }}
+                  onClick={() => designInputRef.current?.click()}
+                  className={`flex cursor-pointer items-center justify-center gap-2.5 rounded-md border-2 border-dashed px-4 py-3 text-center transition ${
+                    dragActiveDesign
+                      ? "border-primeColor bg-gray-100"
+                      : "border-gray-300 bg-white hover:border-primeColor hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    ref={designInputRef}
+                    type="file"
+                    multiple
+                    accept=".png,.jpg,.jpeg,.svg,.webp,.ai"
+                    className="hidden"
+                    onChange={(e) => void handleDesignFilesSelected(e.target.files)}
+                  />
+                  <Icon
+                    icon={uploadLogosMutation.isPending ? "mdi:loading" : "mdi:cloud-upload-outline"}
+                    width={20}
+                    className={`text-primeColor ${uploadLogosMutation.isPending ? "animate-spin" : ""}`}
+                  />
+                  <p className="text-xs font-medium text-primeColor">
+                    Kéo thả hoặc nhấn để chọn tải ảnh logo / mẫu áo thiết kế
+                  </p>
+                </div>
+
+                {designError && <p className="mt-1.5 text-xs text-red-600">{designError}</p>}
+
+                {designFiles.length > 0 && (
+                  <div className="mt-2.5 grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                    {designFiles.map(({ ref, previewUrl }) => {
+                      const badge = getFileBadge(ref.originalName);
+                      return (
+                        <div
+                          key={ref.fileName}
+                          className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 shadow-xs"
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            {previewUrl ? (
+                              <img
+                                src={previewUrl}
+                                alt={ref.originalName}
+                                className="h-9 w-9 shrink-0 rounded object-cover border border-gray-100"
+                              />
+                            ) : (
+                              <span
+                                className={`flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded border text-[9px] font-bold ${badge.bgClass}`}
+                              >
+                                <Icon icon={badge.icon} width={18} />
+                              </span>
+                            )}
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold text-primeColor">
+                                {ref.originalName}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                {formatFileSize(ref.sizeBytes)}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeDesignFile(ref.fileName)}
+                            aria-label="Xóa ảnh"
+                            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
+                          >
+                            <Icon icon="mdi:trash-can-outline" width={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Phần 2: File danh sách kích thước & bảng size - Hàng ngang full-width */}
+              <div className="rounded-md border border-gray-200 bg-gray-50/60 p-3.5">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Icon icon="mdi:file-table-box-outline" className="text-primeColor" width={18} />
+                    <label className="text-xs font-bold text-primeColor">
+                      File kích thước &amp; Bảng size (Word, Excel, PDF)
+                    </label>
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    {sizeFiles.length}/{MAX_FILES_PER_STREAM} file · .xlsx, .xls, .docx, .doc, .pdf (≤ 10MB)
+                  </span>
+                </div>
+
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragActiveSize(true);
+                  }}
+                  onDragLeave={() => setDragActiveSize(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragActiveSize(false);
+                    void handleSizeFilesSelected(e.dataTransfer.files);
+                  }}
+                  onClick={() => sizeDocInputRef.current?.click()}
+                  className={`flex cursor-pointer items-center justify-center gap-2.5 rounded-md border-2 border-dashed px-4 py-3 text-center transition ${
+                    dragActiveSize
+                      ? "border-primeColor bg-gray-100"
+                      : "border-gray-300 bg-white hover:border-primeColor hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    ref={sizeDocInputRef}
+                    type="file"
+                    multiple
+                    accept=".xlsx,.xls,.docx,.doc,.pdf"
+                    className="hidden"
+                    onChange={(e) => void handleSizeFilesSelected(e.target.files)}
+                  />
+                  <Icon
+                    icon={uploadLogosMutation.isPending ? "mdi:loading" : "mdi:file-upload-outline"}
+                    width={20}
+                    className={`text-primeColor ${uploadLogosMutation.isPending ? "animate-spin" : ""}`}
+                  />
+                  <p className="text-xs font-medium text-primeColor">
+                    Kéo thả hoặc nhấn để chọn file Excel bảng size hoặc Word mô tả kích thước
+                  </p>
+                </div>
+
+                {sizeError && <p className="mt-1.5 text-xs text-red-600">{sizeError}</p>}
+
+                {sizeFiles.length > 0 && (
+                  <div className="mt-2.5 grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                    {sizeFiles.map(({ ref }) => {
+                      const badge = getFileBadge(ref.originalName);
+                      return (
+                        <div
+                          key={ref.fileName}
+                          className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 shadow-xs"
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span
+                              className={`flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded border text-[9px] font-bold ${badge.bgClass}`}
+                            >
+                              <Icon icon={badge.icon} width={18} />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold text-primeColor">
+                                {ref.originalName}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                {formatFileSize(ref.sizeBytes)}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeSizeFile(ref.fileName)}
+                            aria-label="Xóa file"
+                            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
+                          >
+                            <Icon icon="mdi:trash-can-outline" width={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {submitError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {submitError}
                 </div>
               )}
@@ -697,7 +749,7 @@ export default function QuoteRequestModal({
         </div>
 
         {!createdResult && (
-          <div className="flex flex-col-reverse gap-3 border-t border-gray-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex flex-col-reverse gap-3 border-t border-gray-200 bg-gray-50/90 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <p className="text-xs text-slate-500">
               Miễn phí lên mockup thiết kế 2D trước khi chốt đơn sản xuất.
             </p>
@@ -705,7 +757,7 @@ export default function QuoteRequestModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-gray-50"
+                className="rounded-md border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-gray-100 transition"
               >
                 Hủy
               </button>
@@ -713,11 +765,11 @@ export default function QuoteRequestModal({
                 type="submit"
                 form="rfq-form"
                 disabled={isSubmitting || createQuoteMutation.isPending || uploadLogosMutation.isPending}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#1d4ed8] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1e40af] disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md bg-primeColor px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Icon
                   icon={createQuoteMutation.isPending ? "mdi:loading" : "lucide:send"}
-                  width={16}
+                  width={15}
                   className={createQuoteMutation.isPending ? "animate-spin" : ""}
                 />
                 {createQuoteMutation.isPending ? "Đang gửi..." : "Gửi yêu cầu báo giá"}

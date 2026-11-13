@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Icon } from "@iconify/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import QuoteRequestModal from "../components/quote/QuoteRequestModal";
@@ -16,15 +15,9 @@ import {
 } from "../services/reviewService";
 import { queryKeys } from "../lib/queryKeys";
 import { logger } from "../lib/logger";
-import { openZaloProductConsult, resolveProductPricing } from "../lib/productRfq";
+import { openZaloProductConsult } from "../lib/productRfq";
+import ZaloIcon from "../components/common/ZaloIcon";
 import { ROUTES, routeTo } from "../lib/routes";
-
-const RFQ_HIGHLIGHTS = [
-  { icon: "lucide:shield-check", text: "Thiết kế miễn phí logo độc đáo, đẳng cấp" },
-  { icon: "lucide:sparkles", text: "Chất liệu cao cấp, giá tận xưởng" },
-  { icon: "lucide:palette", text: "Màu sắc đa dạng, nhiều lựa chọn màu sắc" },
-  { icon: "lucide:truck", text: "Giao hàng toàn quốc miễn phí" },
-] as const;
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -37,13 +30,21 @@ export default function ProductDetailPage() {
 
   const [selectedVariant, setSelectedVariant] =
     useState<ProductVariantSummaryDto | null>(null);
+  const [qty, setQty] = useState(1);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
 
   useEffect(() => {
     if (!product) return;
 
     const activeVariants = product.variants.filter((v) => v.isActive);
-    setSelectedVariant(activeVariants.length === 1 ? activeVariants[0] : null);
+
+    if (activeVariants.length === 1) {
+      setSelectedVariant(activeVariants[0]);
+    } else {
+      setSelectedVariant(null);
+    }
+
+    setQty(1);
   }, [product]);
 
   useEffect(() => {
@@ -90,16 +91,11 @@ export default function ProductDetailPage() {
 
   const activeVariants = product.variants.filter((v) => v.isActive);
   const hasVariants = activeVariants.length > 0;
+
   const currentVariant = selectedVariant ?? activeVariants[0] ?? null;
-  const { basePrice, originalPrice, discountPercent } = resolveProductPricing(
-    product,
-    selectedVariant?.price ?? null
-  );
-  const minOrderQty =
-    product.minOrderQuantity && product.minOrderQuantity > 1 ? product.minOrderQuantity : 1;
-  const priceNote =
-    product.priceNote?.trim() ||
-    "Giá sản phẩm có thể thay đổi theo chất liệu, số lượng và kỹ thuật in. Vui lòng liên hệ hoặc nhấn Nhận báo giá để được tư vấn và nhận giá chính thức.";
+  const currentPrice = currentVariant?.price ?? product.minVariantPrice ?? product.price;
+  const currentStock = currentVariant?.stock ?? 0;
+  const isOutOfStock = currentStock <= 0;
 
   const handleRequestQuote = () => {
     setQuoteModalOpen(true);
@@ -107,9 +103,11 @@ export default function ProductDetailPage() {
 
   const handleZaloConsult = async () => {
     const productUrl = `${window.location.origin}${routeTo.product(product.slug)}`;
+    const variantInfo = currentVariant?.sku ? ` - Bản: ${currentVariant.sku}` : "";
+    const qtyInfo = qty > 1 ? ` - SL: ${qty}` : "";
     const result = await openZaloProductConsult({
       zaloPhone: shopContact?.zaloPhone,
-      productName: product.name,
+      productName: `${product.name}${variantInfo}${qtyInfo}`,
       productUrl,
     });
 
@@ -122,10 +120,6 @@ export default function ProductDetailPage() {
     if (result.copied) {
       showToast("Đã sao chép tên sản phẩm — đang mở Zalo tư vấn", "info");
     }
-  };
-
-  const handleChatWithShop = () => {
-    navigate(`?chat=support&productId=${encodeURIComponent(product.id)}`, { replace: true });
   };
 
   return (
@@ -214,109 +208,66 @@ export default function ProductDetailPage() {
               </div>
 
               <span className="text-sm text-lightText font-bodyFont">
-                {product.reviewCount > 0
-                  ? `${product.averageRating.toFixed(1)} (${product.reviewCount} đánh giá)`
-                  : "(Chưa có đánh giá)"}
+                ({product.averageRating.toFixed(1)})
               </span>
-              {minOrderQty > 1 && (
-                <>
-                  <span className="text-gray-300">|</span>
-                  <span className="text-sm font-medium text-[#1d4ed8] font-bodyFont">
-                    Đặt tối thiểu {minOrderQty} áo
+              <span className="text-gray-300">|</span>
+
+              <span className="text-sm font-bodyFont">
+                {isOutOfStock ? (
+                  <span className="text-red-500 font-medium">Hết hàng</span>
+                ) : (
+                  <span className="text-success font-medium">
+                    Còn {currentStock} sản phẩm
                   </span>
-                </>
-              )}
+                )}
+              </span>
             </div>
 
-            <div className="flex flex-wrap items-baseline gap-3 mb-5">
-              <span className="text-base text-slate-600 font-bodyFont">Giá từ:</span>
-              {originalPrice && (
-                <span className="text-base text-lightText line-through font-bodyFont">
-                  {formatPrice(originalPrice)}
+            <div className="flex items-baseline gap-3 mb-6 pb-6 border-b border-gray-100">
+              <span className="font-titleFont text-3xl font-bold text-red-500">
+                {formatPrice(currentPrice)}
+              </span>
+
+              {currentVariant && currentVariant.price < product.price && (
+                <span className="text-lg text-lightText line-through font-bodyFont">
+                  {formatPrice(product.price)}
                 </span>
               )}
-              <span className="font-titleFont text-3xl font-bold text-[#1d4ed8]">
-                {formatPrice(basePrice)}
-              </span>
-              {discountPercent && (
-                <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-                  -{discountPercent}%
+
+              {product.taxable && (
+                <span className="text-xs text-lightText font-bodyFont">
+                  (đã bao gồm thuế)
                 </span>
               )}
             </div>
-
-            <div className="mb-5 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
-              {RFQ_HIGHLIGHTS.map((item) => (
-                <div key={item.text} className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[#1d4ed8]">
-                    <Icon icon={item.icon} width={16} />
-                  </span>
-                  <span className="font-bodyFont">{item.text}</span>
-                </div>
-              ))}
-            </div>
-
-            {(product.availableMaterials?.length || product.availablePrintTechniques?.length) ? (
-              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {product.availableMaterials && product.availableMaterials.length > 0 && (
-                  <div className="rounded-xl border border-gray-100 bg-slate-50/70 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                      Chất liệu hỗ trợ
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {product.availableMaterials.map((material) => (
-                        <span
-                          key={material}
-                          className="rounded-md bg-white border border-gray-200 px-2.5 py-1 text-xs font-medium text-primeColor"
-                        >
-                          {material}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {product.availablePrintTechniques && product.availablePrintTechniques.length > 0 && (
-                  <div className="rounded-xl border border-gray-100 bg-slate-50/70 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                      Kỹ thuật in / thêu
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {product.availablePrintTechniques.map((tech) => (
-                        <span
-                          key={tech}
-                          className="rounded-md bg-white border border-gray-200 px-2.5 py-1 text-xs font-medium text-primeColor"
-                        >
-                          {tech}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : null}
 
             {hasVariants && (
-              <div className="mb-5">
-                <p className="text-xs tracking-[1.5px] uppercase font-semibold mb-2.5 font-titleFont text-slate-600">
-                  Mẫu / Phiên bản tham khảo
+              <div className="mb-6">
+                <p className="text-xs tracking-[2px] uppercase font-semibold mb-3 font-titleFont">
+                  Phiên bản
                 </p>
+
                 <div className="flex flex-wrap gap-2">
                   {activeVariants.map((v) => (
                     <button
                       type="button"
                       key={v.id}
-                      onClick={() => setSelectedVariant(v)}
-                      className={`px-3.5 py-1.5 text-xs font-bodyFont border rounded-lg transition-all duration-200
+                      onClick={() => {
+                        setSelectedVariant(v);
+                        setQty(1);
+                      }}
+                      disabled={v.stock <= 0}
+                      className={`px-4 py-2 text-sm font-bodyFont border transition-all duration-200
+                        disabled:opacity-40 disabled:cursor-not-allowed
                         ${
                           v.id === selectedVariant?.id ||
                           (activeVariants.length === 1 && v.id === currentVariant?.id)
-                            ? "border-[#1d4ed8] text-[#1d4ed8] bg-blue-50 font-semibold"
-                            : "border-gray-200 hover:border-primeColor text-slate-700"
+                            ? "border-red-500 text-red-500 bg-red-50"
+                            : "border-gray-200 hover:border-primeColor"
                         }`}
                     >
                       {v.sku}
-                      <span className="ml-1.5 text-[11px] text-lightText">
+                      <span className="ml-1.5 text-xs text-lightText">
                         {formatPrice(v.price)}
                       </span>
                     </button>
@@ -325,48 +276,57 @@ export default function ProductDetailPage() {
               </div>
             )}
 
-            <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-blue-200 bg-[#eff6ff] px-4 py-3 text-sm leading-relaxed text-slate-700">
-              <Icon icon="lucide:info" width={18} className="mt-0.5 shrink-0 text-[#1d4ed8]" />
-              <p>
-                <span className="font-semibold text-primeColor">Lưu ý: </span>
-                {priceNote}
+            <div className="flex items-center gap-4 mb-7">
+              <p className="text-xs tracking-[2px] uppercase font-semibold font-titleFont">
+                Số lượng
               </p>
+
+              <div className="flex items-center border border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  className="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors text-lg"
+                >
+                  −
+                </button>
+
+                <span className="w-12 text-center text-sm font-bodyFont font-medium">
+                  {qty}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setQty((q) => (currentStock > 0 ? Math.min(currentStock, q + 1) : q + 1))}
+                  className="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors text-lg"
+                >
+                  +
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <div className="flex gap-3 mb-8">
               <button
                 type="button"
                 onClick={handleRequestQuote}
-                className="flex items-center justify-center gap-2 rounded-lg py-3.5 px-5
-                  text-sm font-semibold font-bodyFont text-white
-                  bg-[#1d4ed8] hover:bg-[#1e40af] transition-all duration-200 shadow-sm"
+                className="flex-1 flex items-center justify-center gap-2.5 py-4
+                  text-sm font-semibold font-bodyFont tracking-widest text-white
+                  bg-primeColor hover:bg-gray-700 transition-all duration-300"
               >
-                <Icon icon="lucide:clipboard-list" width={18} />
                 Nhận báo giá
               </button>
 
               <button
                 type="button"
                 onClick={handleZaloConsult}
-                className="flex items-center justify-center gap-2 rounded-lg py-3.5 px-5
-                  text-sm font-semibold font-bodyFont text-[#1d4ed8]
-                  border border-[#1d4ed8] bg-white hover:bg-blue-50 transition-all duration-200"
+                className="flex-1 flex items-center justify-center gap-2 py-4
+                  text-sm font-semibold font-bodyFont tracking-widest text-white
+                  bg-[#0068ff] hover:bg-[#0057d9] transition-all duration-300
+                  hover:-translate-y-0.5 shadow-xs"
               >
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#0068ff] text-[9px] font-bold text-white">
-                  Zalo
-                </span>
+                <ZaloIcon size={20} />
                 Tư vấn qua Zalo
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={handleChatWithShop}
-              className="mb-8 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white py-3 px-5 text-sm font-semibold font-bodyFont text-primeColor transition hover:border-primeColor hover:bg-gray-50"
-            >
-              <Icon icon="mdi:chat-processing-outline" width={18} />
-              Chat với admin / người bán
-            </button>
 
             {product.description && (
               <div className="border-t border-gray-100 pt-6">
@@ -413,6 +373,7 @@ export default function ProductDetailPage() {
         open={quoteModalOpen}
         onClose={() => setQuoteModalOpen(false)}
         product={product}
+        initialQuantity={qty}
       />
     </div>
   );

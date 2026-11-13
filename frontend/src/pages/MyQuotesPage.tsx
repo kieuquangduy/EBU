@@ -1,7 +1,6 @@
 import { Icon } from "@iconify/react";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import type { QuoteStatus } from "../@types/quoteRequest.type";
 import QuoteRequestModal from "../components/quote/QuoteRequestModal";
 import { useToast } from "../context/toastContext";
 import { useAuth } from "../hooks/useAuth";
@@ -10,26 +9,17 @@ import { useProductBySlug } from "../hooks/useProduct";
 import { useMyQuotes } from "../hooks/useQuoteRequests";
 import { useShopContact } from "../hooks/useShopContact";
 import { openZaloProductConsult, resolveProductPricing } from "../lib/productRfq";
+import ZaloIcon from "../components/common/ZaloIcon";
 import {
-  QUOTE_STATUS_META,
+  USER_STATUS_TABS,
+  type UserStatusGroup,
   formatPrintTechnique,
-  formatQuoteStatus,
+  getUserStatusBadge,
 } from "../lib/quoteStatus";
 import { ROUTES, routeTo } from "../lib/routes";
 import { formatPrice } from "../utils/formatPrice";
 
 const PAGE_SIZE = 10;
-
-const STATUS_TABS: ReadonlyArray<{ value: QuoteStatus | ""; label: string }> = [
-  { value: "", label: "Tất cả" },
-  { value: "Pending", label: "Chờ xử lý" },
-  { value: "Contacted", label: "Đã liên hệ" },
-  { value: "Quoted", label: "Đã báo giá" },
-  { value: "Accepted", label: "Đã chốt" },
-  { value: "InProduction", label: "Đang sản xuất" },
-  { value: "Completed", label: "Hoàn tất" },
-  { value: "Cancelled", label: "Đã hủy" },
-];
 
 export default function MyQuotesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -40,13 +30,13 @@ export default function MyQuotesPage() {
   const { showToast } = useToast();
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<QuoteStatus | "">("");
+  const [statusGroupFilter, setStatusGroupFilter] = useState<UserStatusGroup>("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebounce(search, 350);
 
   const quotesQuery = useMyQuotes({
-    status: statusFilter,
+    statusGroup: statusGroupFilter,
     search: debouncedSearch,
     page,
     pageSize: PAGE_SIZE,
@@ -92,69 +82,79 @@ export default function MyQuotesPage() {
   const totalPages = Math.max(1, quotesQuery.data?.totalPages ?? 1);
 
   return (
-    <section className="min-h-[75vh] bg-[#fafafa] py-10 px-4 sm:px-6 lg:px-10">
+    <section className="min-h-[75vh] bg-[#fbfbfb] py-8 sm:py-10 px-4 sm:px-6 lg:px-10 font-titleFont">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 sm:p-8 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        {/* Header Banner */}
+        <div className="rounded-md border border-gray-200 bg-white p-6 sm:p-7 shadow-xs">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#1d4ed8]">
-                Request For Quotation
-              </p>
-              <h1 className="mt-1.5 font-titleFont text-2xl sm:text-3xl font-bold text-primeColor">
-                Yêu cầu báo giá &amp; Thiết kế áo Custom
+              <h1 className="text-xl sm:text-2xl font-bold text-primeColor">
+                Yêu cầu báo giá của bạn
               </h1>
-              <p className="mt-2 max-w-2xl text-sm text-lightText leading-relaxed">
-                Gửi yêu cầu để nhận mockup logo miễn phí và báo giá tận xưởng theo chất liệu, số lượng và kỹ thuật in/thêu.
+              <p className="mt-1.5 max-w-2xl text-xs sm:text-sm text-lightText leading-relaxed">
+                Theo dõi tiến độ phản hồi giá và sản xuất áo custom từ xưởng may HauShop.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#1d4ed8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1e40af]"
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                to={ROUTES.SHOP}
+                className="inline-flex items-center gap-2 rounded-md bg-primeColor px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-xs transition hover:bg-black"
               >
-                <Icon icon="lucide:clipboard-list" width={18} />
-                Tạo yêu cầu báo giá
-              </button>
+                <Icon icon="lucide:store" width={16} />
+                Khám phá mẫu áo
+              </Link>
               <button
                 type="button"
                 onClick={handleOpenZalo}
-                className="inline-flex items-center gap-2 rounded-lg border border-[#0068ff] bg-white px-4 py-3 text-sm font-semibold text-[#0068ff] transition hover:bg-blue-50"
+                className="inline-flex items-center gap-2 rounded-md bg-[#0068ff] px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-xs transition hover:bg-[#0057d9]"
               >
+                <ZaloIcon size={18} />
                 Tư vấn qua Zalo
               </button>
             </div>
           </div>
 
+          {/* Trường hợp người dùng click "Nhận báo giá" từ trang sản phẩm cụ thể */}
           {productSlug && (
-            <div className="mt-6 rounded-xl border border-blue-100 bg-[#eff6ff] p-4">
+            <div className="mt-5 rounded-md border border-gray-200 bg-gray-50/70 p-4">
               {loadingProduct ? (
-                <div className="h-16 animate-pulse rounded bg-blue-100/70" />
+                <div className="h-14 animate-pulse rounded bg-gray-200/70" />
               ) : product ? (
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3.5">
                     {product.imageUrl && (
                       <img
                         src={product.imageUrl}
                         alt={product.name}
-                        className="h-16 w-16 rounded-lg object-cover border border-white shadow-sm"
+                        className="h-14 w-14 rounded-md object-cover border border-gray-200 shadow-xs"
                       />
                     )}
                     <div>
-                      <p className="text-xs text-lightText">Mẫu áo đang chọn</p>
-                      <p className="font-semibold text-primeColor">{product.name}</p>
-                      <p className="text-sm font-bold text-[#1d4ed8]">
-                        Giá từ {formatPrice(resolveProductPricing(product).basePrice)}
+                      <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                        Mẫu áo đang chọn
+                      </p>
+                      <p className="font-semibold text-primeColor text-sm">{product.name}</p>
+                      <p className="text-xs font-bold text-red-500">
+                        Giá tham khảo từ {formatPrice(resolveProductPricing(product).basePrice)}
                       </p>
                     </div>
                   </div>
-                  <Link
-                    to={routeTo.product(product.slug)}
-                    className="text-xs font-semibold text-[#1d4ed8] hover:underline"
-                  >
-                    Xem lại sản phẩm →
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setModalOpen(true)}
+                      className="rounded-md bg-primeColor px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-black transition"
+                    >
+                      Gửi báo giá mẫu này
+                    </button>
+                    <Link
+                      to={routeTo.product(product.slug)}
+                      className="text-xs font-medium text-slate-600 hover:text-primeColor hover:underline"
+                    >
+                      Xem chi tiết áo →
+                    </Link>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -162,50 +162,54 @@ export default function MyQuotesPage() {
         </div>
 
         {!isAuthenticated ? (
-          <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center">
-            <Icon icon="lucide:lock" width={34} className="mx-auto text-slate-400" />
-            <h2 className="mt-3 text-lg font-semibold text-primeColor">
+          <div className="rounded-md border border-gray-200 bg-white p-8 text-center shadow-xs">
+            <Icon icon="lucide:lock" width={32} className="mx-auto text-slate-400" />
+            <h2 className="mt-3 text-base sm:text-lg font-bold text-primeColor">
               Đăng nhập để theo dõi lịch sử báo giá
             </h2>
-            <p className="mx-auto mt-1 max-w-md text-sm text-lightText">
-              Bạn vẫn có thể nhấn &ldquo;Tạo yêu cầu báo giá&rdquo; ở trên không cần tài khoản, hoặc đăng nhập để xem báo giá chính thức và tiến độ sản xuất.
+            <p className="mx-auto mt-1 max-w-md text-xs sm:text-sm text-lightText">
+              Đăng nhập tài khoản để xem mức giá chính thức xưởng đã gửi và cập nhật tiến độ sản xuất đơn hàng.
             </p>
             <div className="mt-5 flex justify-center gap-3">
               <Link
                 to={ROUTES.SIGN_IN}
-                className="rounded-lg bg-primeColor px-5 py-2.5 text-sm font-semibold text-white hover:bg-black"
+                className="rounded-md bg-primeColor px-5 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-black transition"
               >
                 Đăng nhập
               </Link>
               <Link
                 to={ROUTES.SHOP}
-                className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-primeColor hover:bg-gray-50"
+                className="rounded-md border border-gray-300 bg-white px-5 py-2.5 text-xs sm:text-sm font-semibold text-primeColor hover:bg-gray-50 transition"
               >
                 Khám phá mẫu áo
               </Link>
             </div>
           </div>
         ) : (
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-4 border-b border-gray-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="rounded-md border border-gray-200 bg-white shadow-xs">
+            {/* Filter Tabs & Search */}
+            <div className="flex flex-col gap-3.5 border-b border-gray-200 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between bg-white">
               <div className="flex flex-wrap gap-1.5">
-                {STATUS_TABS.map((tab) => (
-                  <button
-                    key={tab.value || "all"}
-                    type="button"
-                    onClick={() => {
-                      setStatusFilter(tab.value);
-                      setPage(1);
-                    }}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                      statusFilter === tab.value
-                        ? "bg-[#1d4ed8] text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+                {USER_STATUS_TABS.map((tab) => {
+                  const active = statusGroupFilter === tab.value;
+                  return (
+                    <button
+                      key={tab.value || "all"}
+                      type="button"
+                      onClick={() => {
+                        setStatusGroupFilter(tab.value);
+                        setPage(1);
+                      }}
+                      className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition ${
+                        active
+                          ? "bg-primeColor text-white shadow-xs"
+                          : "bg-gray-100 text-slate-600 hover:bg-gray-200 hover:text-primeColor"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="relative w-full sm:w-64">
@@ -220,87 +224,95 @@ export default function MyQuotesPage() {
                     setSearch(e.target.value);
                     setPage(1);
                   }}
-                  placeholder="Tìm mã RFQ hoặc mẫu áo..."
-                  className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-[#1d4ed8]"
+                  placeholder="Tìm mã báo giá, mẫu áo..."
+                  className="w-full rounded-md border border-gray-300 py-1.5 pl-9 pr-3 text-xs sm:text-sm outline-none focus:border-primeColor focus:ring-1 focus:ring-primeColor"
                 />
               </div>
             </div>
 
+            {/* List Content */}
             {quotesQuery.isLoading ? (
-              <div className="space-y-3 p-6">
+              <div className="space-y-3 p-5 sm:p-6">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-100" />
+                  <div key={i} className="h-16 animate-pulse rounded-md bg-gray-100" />
                 ))}
               </div>
             ) : items.length === 0 ? (
               <div className="p-10 text-center">
-                <Icon icon="lucide:file-text" width={36} className="mx-auto text-slate-300" />
-                <p className="mt-3 font-semibold text-primeColor">Chưa có yêu cầu báo giá nào</p>
-                <p className="mt-1 text-sm text-lightText">
-                  Hãy chọn một mẫu áo trong cửa hàng hoặc gửi yêu cầu custom mới ngay.
+                <Icon icon="mdi:file-document-outline" width={40} className="mx-auto text-slate-300" />
+                <p className="mt-3 font-bold text-primeColor text-sm sm:text-base">
+                  Chưa có yêu cầu báo giá nào
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(true)}
-                  className="mt-4 rounded-lg bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e40af]"
-                >
-                  Gửi yêu cầu đầu tiên
-                </button>
+                <p className="mt-1 text-xs sm:text-sm text-lightText max-w-sm mx-auto">
+                  Hãy chọn một mẫu áo bạn ưng ý trong cửa hàng để gửi yêu cầu báo giá và nhận bản mockup 2D miễn phí.
+                </p>
+                <div className="mt-5">
+                  <Link
+                    to={ROUTES.SHOP}
+                    className="inline-flex items-center gap-2 rounded-md bg-primeColor px-5 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-black transition"
+                  >
+                    <Icon icon="lucide:store" width={16} />
+                    Xem danh mục sản phẩm
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
                 {items.map((item) => {
-                  const meta = QUOTE_STATUS_META[item.status];
+                  const badge = getUserStatusBadge(item.status);
                   return (
                     <Link
                       key={item.id}
                       to={routeTo.quote(item.id)}
-                      className="flex flex-col gap-3 p-5 transition hover:bg-slate-50/80 sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-3 p-4 sm:p-5 transition hover:bg-gray-50/70 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex items-start gap-3.5 min-w-0">
                         {item.productImageUrl ? (
                           <img
                             src={item.productImageUrl}
                             alt={item.productName ?? item.quoteCode}
-                            className="h-14 w-14 shrink-0 rounded-lg border border-gray-200 object-cover"
+                            className="h-14 w-14 shrink-0 rounded-md border border-gray-200 object-cover"
                           />
                         ) : (
-                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-slate-100 text-slate-400">
-                            <Icon icon="lucide:shirt" width={24} />
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-gray-100 text-slate-400">
+                            <Icon icon="lucide:shirt" width={22} />
                           </div>
                         )}
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-sm font-bold text-[#1d4ed8]">
+                            <span className="font-mono text-xs sm:text-sm font-bold text-primeColor">
                               {item.quoteCode}
                             </span>
                             <span
-                              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${meta.badgeClass}`}
+                              className={`rounded-md px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold ${badge.badgeClass}`}
                             >
-                              {formatQuoteStatus(item.status)}
+                              {badge.label}
                             </span>
                           </div>
-                          <p className="mt-1 truncate text-sm font-semibold text-primeColor">
-                            {item.productName ?? "Đặt may / in áo custom theo yêu cầu"}
+                          <p className="mt-1 truncate text-xs sm:text-sm font-semibold text-primeColor">
+                            {item.productName ?? "Đặt may áo custom theo yêu cầu"}
                           </p>
-                          <p className="mt-0.5 text-xs text-lightText">
-                            Số lượng: <strong>{item.quantity}</strong> · Kỹ thuật:{" "}
-                            {formatPrintTechnique(item.printTechnique)}
-                            {item.material ? ` · ${item.material}` : ""}
+                          <p className="mt-0.5 text-[11px] sm:text-xs text-lightText">
+                            Số lượng: <strong>{item.quantity} áo</strong>
+                            {item.quotedPrice != null && item.printTechnique ? (
+                              <> · Kỹ thuật: {formatPrintTechnique(item.printTechnique)}</>
+                            ) : null}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between gap-4 sm:text-right">
+                      <div className="flex items-center justify-between gap-4 sm:text-right border-t border-gray-100 sm:border-t-0 pt-2 sm:pt-0">
                         <div>
                           {item.quotedPrice != null ? (
-                            <p className="text-sm font-bold text-emerald-700">
-                              Báo giá: {formatPrice(item.quotedPrice)}
+                            <p className="text-xs sm:text-sm font-bold text-red-500">
+                              Giá báo: {formatPrice(item.quotedPrice)}
                             </p>
                           ) : (
-                            <p className="text-xs font-medium text-slate-500">Đang chờ báo giá</p>
+                            <p className="text-xs font-medium text-slate-500">
+                              Đang chờ xưởng tính giá
+                            </p>
                           )}
-                          <p className="text-xs text-slate-400">
+                          <p className="text-[11px] text-slate-400">
                             {new Date(item.createdAt).toLocaleDateString("vi-VN")}
                           </p>
                         </div>
@@ -312,8 +324,9 @@ export default function MyQuotesPage() {
               </div>
             )}
 
+            {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3.5 text-sm">
+              <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3 text-xs sm:text-sm">
                 <span className="text-slate-500">
                   Trang {page} / {totalPages}
                 </span>
@@ -322,7 +335,7 @@ export default function MyQuotesPage() {
                     type="button"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => p - 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40 hover:bg-gray-50"
                   >
                     Trước
                   </button>
@@ -330,7 +343,7 @@ export default function MyQuotesPage() {
                     type="button"
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => p + 1)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40 hover:bg-gray-50"
                   >
                     Sau
                   </button>

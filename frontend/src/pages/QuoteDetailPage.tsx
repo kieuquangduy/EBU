@@ -5,12 +5,12 @@ import { useToast } from "../context/toastContext";
 import { useCancelQuoteRequest, useQuoteDetail } from "../hooks/useQuoteRequests";
 import { useShopContact } from "../hooks/useShopContact";
 import { openZaloProductConsult } from "../lib/productRfq";
+import ZaloIcon from "../components/common/ZaloIcon";
 import {
   QUOTE_STATUS_META,
-  QUOTE_STATUS_STEPS,
   canCustomerCancelQuote,
   formatPrintTechnique,
-  formatQuoteStatus,
+  getUserStatusBadge,
 } from "../lib/quoteStatus";
 import { ROUTES, routeTo } from "../lib/routes";
 import { quoteRequestService } from "../services/quoteRequestService";
@@ -54,8 +54,14 @@ export default function QuoteDetailPage() {
 
   const quote = quoteQuery.data;
   const meta = QUOTE_STATUS_META[quote.status];
+  const userBadge = getUserStatusBadge(quote.status);
   const isTerminalClosed = quote.status === "Rejected" || quote.status === "Cancelled";
-  const currentStepIndex = QUOTE_STATUS_STEPS.indexOf(quote.status);
+  const milestoneIndex =
+    quote.status === "Completed"
+      ? 2
+      : quote.status === "Accepted" || quote.status === "InProduction"
+      ? 1
+      : 0;
   const sizeEntries = Object.entries(quote.sizeBreakdown ?? {}).filter(([, qty]) => qty > 0);
 
   const handleCancel = async () => {
@@ -122,8 +128,9 @@ export default function QuoteDetailPage() {
             <button
               type="button"
               onClick={handleOpenZalo}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#0068ff] bg-white px-4 py-2 text-xs font-semibold text-[#0068ff] hover:bg-blue-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0068ff] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#0057d9] transition"
             >
+              <ZaloIcon size={16} />
               Trao đổi Zalo
             </button>
             {canCustomerCancelQuote(quote.status) && (
@@ -139,16 +146,18 @@ export default function QuoteDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-5">
+        <div className="rounded-md border border-gray-200 bg-white p-5 sm:p-6 shadow-xs space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="font-mono text-2xl font-bold text-primeColor">{quote.quoteCode}</h1>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${meta.badgeClass}`}>
-                  {formatQuoteStatus(quote.status)}
+                <h1 className="font-mono text-xl sm:text-2xl font-bold text-primeColor">
+                  {quote.quoteCode}
+                </h1>
+                <span className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${userBadge.badgeClass}`}>
+                  {userBadge.label}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-lightText">{meta.description}</p>
+              <p className="mt-1 text-xs sm:text-sm text-lightText">{meta.description}</p>
             </div>
             <p className="text-xs text-slate-400">
               Gửi lúc {new Date(quote.createdAt).toLocaleString("vi-VN")}
@@ -156,30 +165,34 @@ export default function QuoteDetailPage() {
           </div>
 
           {!isTerminalClosed ? (
-            <div className="grid grid-cols-2 gap-2 pt-2 sm:grid-cols-6">
-              {QUOTE_STATUS_STEPS.map((step, idx) => {
-                const done = currentStepIndex >= idx;
+            <div className="grid grid-cols-3 gap-2.5 pt-1">
+              {[
+                { label: "1. Chờ xử lý", step: 0 },
+                { label: "2. Đã chốt", step: 1 },
+                { label: "3. Hoàn tất", step: 2 },
+              ].map((m) => {
+                const done = milestoneIndex >= m.step;
                 return (
-                  <div key={step} className="flex flex-col items-start gap-1">
+                  <div key={m.label} className="flex flex-col items-start gap-1">
                     <div
                       className={`h-1.5 w-full rounded-full ${
-                        done ? "bg-[#1d4ed8]" : "bg-gray-200"
+                        done ? "bg-primeColor" : "bg-gray-200"
                       }`}
                     />
                     <span
                       className={`text-[11px] font-semibold ${
-                        done ? "text-[#1d4ed8]" : "text-slate-400"
+                        done ? "text-primeColor" : "text-slate-400"
                       }`}
                     >
-                      {formatQuoteStatus(step)}
+                      {m.label}
                     </span>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              Yêu cầu này đang ở trạng thái <strong>{formatQuoteStatus(quote.status)}</strong>.
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-xs sm:text-sm text-slate-700">
+              Yêu cầu này đang ở trạng thái <strong>Đã hủy</strong>.
             </div>
           )}
 
@@ -243,7 +256,9 @@ export default function QuoteDetailPage() {
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Kỹ thuật in / thêu:</dt>
                 <dd className="font-semibold text-primeColor">
-                  {formatPrintTechnique(quote.printTechnique)}
+                  {quote.quotedPrice != null
+                    ? formatPrintTechnique(quote.printTechnique)
+                    : "Shop sẽ xác nhận khi gửi báo giá"}
                 </dd>
               </div>
               {quote.material && (
@@ -258,14 +273,14 @@ export default function QuoteDetailPage() {
                   <dd className="font-semibold text-primeColor">{quote.colorSelection}</dd>
                 </div>
               )}
-              {quote.expectedDeliveryDate && (
-                <div className="flex justify-between gap-3">
-                  <dt className="text-slate-500">Ngày nhận dự kiến:</dt>
-                  <dd className="font-semibold text-primeColor">
-                    {new Date(quote.expectedDeliveryDate).toLocaleDateString("vi-VN")}
-                  </dd>
-                </div>
-              )}
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500">Ngày giao dự kiến:</dt>
+                <dd className="font-semibold text-primeColor">
+                  {quote.expectedDeliveryDate
+                    ? new Date(quote.expectedDeliveryDate).toLocaleDateString("vi-VN")
+                    : "Shop sẽ hẹn ngày khi gửi báo giá"}
+                </dd>
+              </div>
             </dl>
 
             {sizeEntries.length > 0 && (
@@ -322,32 +337,80 @@ export default function QuoteDetailPage() {
 
             <div>
               <p className="mb-2 text-xs font-semibold text-slate-500">
-                File logo đã gửi ({quote.logoFiles.length}):
+                File đính kèm ({quote.logoFiles.length}):
               </p>
               {quote.logoFiles.length === 0 ? (
                 <p className="text-xs text-slate-400">Không có file đính kèm.</p>
-              ) : (
-                <div className="space-y-2">
-                  {quote.logoFiles.map((file) => (
-                    <div
-                      key={file.fileName}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-xs"
-                    >
-                      <span className="truncate font-medium text-primeColor">
-                        {file.originalName}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={downloadingFile === file.fileName}
-                        onClick={() => handleDownloadLogo(file.fileName, file.originalName)}
-                        className="shrink-0 font-semibold text-[#1d4ed8] hover:underline disabled:opacity-50"
-                      >
-                        {downloadingFile === file.fileName ? "Đang tải..." : "Tải xuống"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              ) : (() => {
+                const designFiles = quote.logoFiles.filter((f) =>
+                  /\.(png|jpe?g|svg|webp|ai)$/i.test(f.fileName || f.originalName)
+                );
+                const sizeFiles = quote.logoFiles.filter(
+                  (f) => !/\.(png|jpe?g|svg|webp|ai)$/i.test(f.fileName || f.originalName)
+                );
+
+                return (
+                  <div className="space-y-3">
+                    {designFiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                          <Icon icon="mdi:image-outline" className="text-blue-600" width={15} />
+                          Ảnh logo / Bản vẽ mẫu ({designFiles.length})
+                        </p>
+                        <div className="space-y-1.5">
+                          {designFiles.map((file) => (
+                            <div
+                              key={file.fileName}
+                              className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-xs bg-slate-50/50"
+                            >
+                              <span className="truncate font-medium text-primeColor">
+                                {file.originalName}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={downloadingFile === file.fileName}
+                                onClick={() => handleDownloadLogo(file.fileName, file.originalName)}
+                                className="shrink-0 font-semibold text-[#1d4ed8] hover:underline disabled:opacity-50"
+                              >
+                                {downloadingFile === file.fileName ? "Đang tải..." : "Tải xuống"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {sizeFiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                          <Icon icon="mdi:file-table-box-outline" className="text-emerald-600" width={15} />
+                          File kích thước áo / Excel / Word ({sizeFiles.length})
+                        </p>
+                        <div className="space-y-1.5">
+                          {sizeFiles.map((file) => (
+                            <div
+                              key={file.fileName}
+                              className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-xs bg-slate-50/50"
+                            >
+                              <span className="truncate font-medium text-primeColor">
+                                {file.originalName}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={downloadingFile === file.fileName}
+                                onClick={() => handleDownloadLogo(file.fileName, file.originalName)}
+                                className="shrink-0 font-semibold text-emerald-700 hover:underline disabled:opacity-50"
+                              >
+                                {downloadingFile === file.fileName ? "Đang tải..." : "Tải xuống"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

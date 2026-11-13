@@ -8,6 +8,7 @@ namespace api.DTOs.shop
         public string Hotline { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string? MessengerLink { get; set; }
+        public string? FacebookLink { get; set; }
         public string? WorkingHours { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }

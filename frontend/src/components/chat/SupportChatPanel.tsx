@@ -333,7 +333,7 @@ export default function SupportChatPanel({
                           user?.email ||
                           "Khách chat offline",
                         phone: phoneTrim,
-                        email: user?.email ?? null,
+                        email: user?.email || `${phoneTrim.replace(/\D/g, "")}@guest.haushop.vn`,
                         quantity: 1,
                         printTechnique: "Other",
                         note: offlineNote.trim() || "Khách để lại thông tin khi Admin offline",

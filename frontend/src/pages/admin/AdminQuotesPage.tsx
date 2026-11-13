@@ -1,7 +1,7 @@
 import { Icon } from "@iconify/react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { QuoteStatus } from "../../@types/quoteRequest.type";
+import type { PrintTechnique, QuoteStatus } from "../../@types/quoteRequest.type";
 import { useToast } from "../../context/toastContext";
 import {
   useAdminDashboard,
@@ -15,6 +15,7 @@ import {
 import { useAuth } from "../../hooks/useAuth";
 import { useDebounce } from "../../hooks/useDebounce";
 import {
+  PRINT_TECHNIQUE_OPTIONS,
   QUOTE_ADMIN_TRANSITIONS,
   QUOTE_STATUS_META,
   formatPrintTechnique,
@@ -23,6 +24,7 @@ import {
 import { routeTo } from "../../lib/routes";
 import { quoteRequestService } from "../../services/quoteRequestService";
 import { buildZaloUrl } from "../../services/shopContactService";
+import ZaloIcon from "../../components/common/ZaloIcon";
 import { formatPrice } from "../../utils/formatPrice";
 import {
   AdminBadge,
@@ -80,6 +82,8 @@ export default function AdminQuotesPage() {
 
   // Pricing form state
   const [quotedPrice, setQuotedPrice] = useState("");
+  const [quotedPrintTechnique, setQuotedPrintTechnique] = useState<PrintTechnique>("ScreenPrint");
+  const [quotedDeliveryDate, setQuotedDeliveryDate] = useState("");
   const [quotedNote, setQuotedNote] = useState("");
   const [internalNote, setInternalNote] = useState("");
   const [nextStatus, setNextStatus] = useState<QuoteStatus | "">("");
@@ -107,6 +111,10 @@ export default function AdminQuotesPage() {
     const detail = detailQuery.data;
     if (!detail) return;
     setQuotedPrice(detail.quotedPrice != null ? String(detail.quotedPrice) : "");
+    setQuotedPrintTechnique(detail.printTechnique ?? "ScreenPrint");
+    setQuotedDeliveryDate(
+      detail.expectedDeliveryDate ? detail.expectedDeliveryDate.split("T")[0] : ""
+    );
     setQuotedNote(detail.quotedNote ?? "");
     setInternalNote(detail.internalNote ?? "");
     const allowed = QUOTE_ADMIN_TRANSITIONS[detail.status] ?? [];
@@ -132,6 +140,10 @@ export default function AdminQuotesPage() {
         id: detail.id,
         dto: {
           quotedPrice: price,
+          printTechnique: quotedPrintTechnique,
+          expectedDeliveryDate: quotedDeliveryDate
+            ? new Date(`${quotedDeliveryDate}T00:00:00Z`).toISOString()
+            : null,
           quotedNote: quotedNote.trim() || null,
           internalNote: internalNote.trim() || null,
         },
@@ -445,8 +457,9 @@ export default function AdminQuotesPage() {
                       href={buildZaloUrl(detail.phone)!}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#0068ff] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0057d9] shadow-xs transition"
                     >
+                      <ZaloIcon size={15} />
                       Mở Zalo ({detail.phone})
                     </a>
                   ) : null}
@@ -529,71 +542,174 @@ export default function AdminQuotesPage() {
                 )}
               </div>
 
-              {detail.logoFiles.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-slate-700">
-                    File logo đính kèm ({detail.logoFiles.length})
-                  </p>
-                  <div className="space-y-1.5">
-                    {detail.logoFiles.map((file) => (
-                      <div
-                        key={file.fileName}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs"
-                      >
-                        <span className="truncate font-medium text-slate-800">
-                          {file.originalName}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={downloadingFile === file.fileName}
-                          onClick={async () => {
-                            setDownloadingFile(file.fileName);
-                            try {
-                              await quoteRequestService.downloadLogo(
-                                detail.id,
-                                file.fileName,
-                                file.originalName
-                              );
-                            } finally {
-                              setDownloadingFile(null);
-                            }
-                          }}
-                          className="shrink-0 font-semibold text-blue-700 hover:underline"
-                        >
-                          {downloadingFile === file.fileName ? "Đang tải..." : "Tải xuống"}
-                        </button>
+              {detail.logoFiles.length > 0 && (() => {
+                const designFiles = detail.logoFiles.filter((f) =>
+                  /\.(png|jpe?g|svg|webp|ai)$/i.test(f.fileName || f.originalName)
+                );
+                const sizeFiles = detail.logoFiles.filter(
+                  (f) => !/\.(png|jpe?g|svg|webp|ai)$/i.test(f.fileName || f.originalName)
+                );
+
+                return (
+                  <div className="space-y-3">
+                    {designFiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                          <Icon icon="mdi:image-outline" className="text-blue-600" width={16} />
+                          Ảnh logo / Mẫu áo thiết kế ({designFiles.length})
+                        </p>
+                        <div className="space-y-1.5">
+                          {designFiles.map((file) => (
+                            <div
+                              key={file.fileName}
+                              className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                            >
+                              <span className="truncate font-medium text-slate-800">
+                                {file.originalName}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={downloadingFile === file.fileName}
+                                onClick={async () => {
+                                  setDownloadingFile(file.fileName);
+                                  try {
+                                    await quoteRequestService.downloadLogo(
+                                      detail.id,
+                                      file.fileName,
+                                      file.originalName
+                                    );
+                                  } finally {
+                                    setDownloadingFile(null);
+                                  }
+                                }}
+                                className="shrink-0 font-semibold text-blue-700 hover:underline"
+                              >
+                                {downloadingFile === file.fileName ? "Đang tải..." : "Tải xuống"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
+                    )}
+
+                    {sizeFiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                          <Icon icon="mdi:file-table-box-outline" className="text-emerald-600" width={16} />
+                          File kích thước áo / Excel / Word ({sizeFiles.length})
+                        </p>
+                        <div className="space-y-1.5">
+                          {sizeFiles.map((file) => (
+                            <div
+                              key={file.fileName}
+                              className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                            >
+                              <span className="truncate font-medium text-slate-800">
+                                {file.originalName}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={downloadingFile === file.fileName}
+                                onClick={async () => {
+                                  setDownloadingFile(file.fileName);
+                                  try {
+                                    await quoteRequestService.downloadLogo(
+                                      detail.id,
+                                      file.fileName,
+                                      file.originalName
+                                    );
+                                  } finally {
+                                    setDownloadingFile(null);
+                                  }
+                                }}
+                                className="shrink-0 font-semibold text-emerald-700 hover:underline"
+                              >
+                                {downloadingFile === file.fileName ? "Đang tải..." : "Tải xuống"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               <div className="rounded-xl border border-slate-200 p-4 space-y-3">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
                   Cập nhật báo giá chính thức
                 </p>
                 <div className="space-y-2.5">
-                  <input
-                    type="number"
-                    value={quotedPrice}
-                    onChange={(e) => setQuotedPrice(e.target.value)}
-                    placeholder="Tổng tiền báo giá (VNĐ)"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                  />
-                  <textarea
-                    rows={2}
-                    value={quotedNote}
-                    onChange={(e) => setQuotedNote(e.target.value)}
-                    placeholder="Ghi chú báo giá gửi khách (VD: đã bao gồm in ngực trái + giao hàng)"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs outline-none focus:border-blue-600"
-                  />
-                  <textarea
-                    rows={2}
-                    value={internalNote}
-                    onChange={(e) => setInternalNote(e.target.value)}
-                    placeholder="Ghi chú nội bộ Admin (khách không thấy)"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs outline-none focus:border-blue-600"
-                  />
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">
+                      Tổng tiền báo giá (VNĐ) *
+                    </label>
+                    <input
+                      type="number"
+                      value={quotedPrice}
+                      onChange={(e) => setQuotedPrice(e.target.value)}
+                      placeholder="Tổng tiền báo giá (VNĐ)"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700">
+                        Kỹ thuật in / thêu *
+                      </label>
+                      <select
+                        value={quotedPrintTechnique}
+                        onChange={(e) => setQuotedPrintTechnique(e.target.value as PrintTechnique)}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium outline-none focus:border-blue-600"
+                      >
+                        {PRINT_TECHNIQUE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700">
+                        Ngày hẹn giao hàng
+                      </label>
+                      <input
+                        type="date"
+                        value={quotedDeliveryDate}
+                        onChange={(e) => setQuotedDeliveryDate(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">
+                      Ghi chú báo giá gửi khách
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={quotedNote}
+                      onChange={(e) => setQuotedNote(e.target.value)}
+                      placeholder="Ghi chú báo giá gửi khách (VD: đã bao gồm in logo ngực trái + miễn phí ship)"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">
+                      Ghi chú nội bộ Admin
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={internalNote}
+                      onChange={(e) => setInternalNote(e.target.value)}
+                      placeholder="Ghi chú nội bộ Admin (khách không thấy)"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs outline-none focus:border-blue-600"
+                    />
+                  </div>
+
                   <AdminPrimaryButton
                     type="button"
                     disabled={updatePriceMutation.isPending}

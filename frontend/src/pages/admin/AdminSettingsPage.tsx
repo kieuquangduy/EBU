@@ -507,8 +507,8 @@ export default function AdminSettingsPage() {
 
           <AdminPanel>
             <AdminPanelHeader
-              title="Kênh liên hệ khách hàng (Zalo / Hotline)"
-              subtitle="Hiển thị trên thanh nổi, chân trang và nút Tư vấn qua Zalo"
+              title="Kênh liên hệ khách hàng (Zalo / Hotline / Messenger)"
+              subtitle="Hiển thị trên thanh nổi, chân trang, Fanpage và các kênh tư vấn"
             />
             <div className="space-y-4 px-5 py-5 sm:px-6">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -516,7 +516,7 @@ export default function AdminSettingsPage() {
                   <input
                     value={contactForm.zaloPhone}
                     onChange={(e) => setContactForm((c) => ({ ...c, zaloPhone: e.target.value }))}
-                    placeholder="0912345678"
+                    placeholder="0963538795"
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
                   />
                 </Field>
@@ -524,7 +524,7 @@ export default function AdminSettingsPage() {
                   <input
                     value={contactForm.hotline}
                     onChange={(e) => setContactForm((c) => ({ ...c, hotline: e.target.value }))}
-                    placeholder="1900 1234"
+                    placeholder="0963 538 795"
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
                   />
                 </Field>
@@ -533,7 +533,7 @@ export default function AdminSettingsPage() {
                     type="email"
                     value={contactForm.email}
                     onChange={(e) => setContactForm((c) => ({ ...c, email: e.target.value }))}
-                    placeholder="support@haushop.vn"
+                    placeholder="contact@haushop.vn"
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
                   />
                 </Field>
@@ -545,11 +545,11 @@ export default function AdminSettingsPage() {
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
                   />
                 </Field>
-                <Field label="Link Messenger">
+                <Field label="Link Messenger *">
                   <input
                     value={contactForm.messengerLink ?? ""}
                     onChange={(e) => setContactForm((c) => ({ ...c, messengerLink: e.target.value }))}
-                    placeholder="https://m.me/..."
+                    placeholder="https://m.me/61596220172115"
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
                   />
                 </Field>
@@ -557,7 +557,7 @@ export default function AdminSettingsPage() {
                   <input
                     value={contactForm.workingHours ?? ""}
                     onChange={(e) => setContactForm((c) => ({ ...c, workingHours: e.target.value }))}
-                    placeholder="8:00 - 21:00 (Thứ 2 - CN)"
+                    placeholder="08:00 - 21:00 (Thứ 2 - Chủ nhật)"
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none"
                   />
                 </Field>

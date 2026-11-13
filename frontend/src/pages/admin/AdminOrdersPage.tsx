@@ -17,6 +17,7 @@ import {
 } from "../../hooks/useAdmin";
 import { useDebounce } from "../../hooks/useDebounce";
 import { formatPrice } from "../../utils/formatPrice";
+import ZaloIcon from "../../components/common/ZaloIcon";
 import {
   AdminBadge,
   AdminEmptyState,
@@ -94,7 +95,7 @@ function formatOrderSourceLabel(source?: string | null) {
 
 function orderSourceTone(source?: string | null) {
   if (source === "FromQuote") return "bg-indigo-100 text-indigo-800";
-  if (source === "ManualZalo") return "bg-sky-100 text-sky-800";
+  if (source === "ManualZalo") return "bg-blue-50 text-[#0068ff] border border-blue-200 font-semibold";
   return "bg-slate-100 text-slate-700";
 }
 
@@ -260,8 +261,12 @@ export default function AdminOrdersPage() {
             Theo dõi đơn chốt từ RFQ, tạo đơn thủ công khi khách chốt qua Zalo và đối soát thanh toán.
           </p>
         </div>
-        <AdminPrimaryButton type="button" onClick={() => setManualModalOpen(true)}>
-          <Icon icon="mdi:plus" width={18} className="mr-1.5" />
+        <AdminPrimaryButton
+          type="button"
+          onClick={() => setManualModalOpen(true)}
+          className="bg-[#0068ff] hover:bg-[#0057d9] text-white"
+        >
+          <ZaloIcon size={18} className="mr-1.5" />
           Tạo đơn thủ công (Zalo)
         </AdminPrimaryButton>
       </div>

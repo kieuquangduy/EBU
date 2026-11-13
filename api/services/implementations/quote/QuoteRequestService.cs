@@ -112,7 +112,7 @@ namespace api.services.implementations.quote
                 OrganizationName = string.IsNullOrWhiteSpace(dto.OrganizationName) ? null : dto.OrganizationName.Trim(),
                 Quantity = dto.Quantity,
                 Material = string.IsNullOrWhiteSpace(dto.Material) ? null : dto.Material.Trim(),
-                PrintTechnique = dto.PrintTechnique,
+                PrintTechnique = dto.PrintTechnique ?? PrintTechnique.Other,
                 SizeBreakdownJson = dto.SizeBreakdown is { Count: > 0 }
                     ? JsonSerializer.Serialize(dto.SizeBreakdown)
                     : null,
@@ -121,7 +121,7 @@ namespace api.services.implementations.quote
                     ? JsonSerializer.Serialize(dto.LogoFiles)
                     : null,
                 Note = string.IsNullOrWhiteSpace(dto.Note) ? null : dto.Note.Trim(),
-                ExpectedDeliveryDate = dto.ExpectedDeliveryDate,
+                ExpectedDeliveryDate = null,
                 Status = QuoteStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
@@ -303,6 +303,14 @@ namespace api.services.implementations.quote
             {
                 entity.InternalNote = string.IsNullOrWhiteSpace(dto.InternalNote) ? null : dto.InternalNote.Trim();
             }
+            if (dto.PrintTechnique.HasValue)
+            {
+                entity.PrintTechnique = dto.PrintTechnique.Value;
+            }
+            if (dto.ExpectedDeliveryDate.HasValue)
+            {
+                entity.ExpectedDeliveryDate = dto.ExpectedDeliveryDate.Value;
+            }
 
             if (string.IsNullOrWhiteSpace(entity.AssignedAdminId) && !string.IsNullOrWhiteSpace(adminUserId))
             {
@@ -389,7 +397,19 @@ namespace api.services.implementations.quote
 
         private static IQueryable<QuoteRequest> ApplyFilters(IQueryable<QuoteRequest> source, QuoteRequestQueryDto query)
         {
-            if (query.Status.HasValue)
+            if (!string.IsNullOrWhiteSpace(query.StatusGroup))
+            {
+                var group = query.StatusGroup.Trim().ToLowerInvariant();
+                source = group switch
+                {
+                    "pending" => source.Where(q => q.Status == QuoteStatus.Pending || q.Status == QuoteStatus.Contacted || q.Status == QuoteStatus.Quoted),
+                    "accepted" => source.Where(q => q.Status == QuoteStatus.Accepted || q.Status == QuoteStatus.InProduction),
+                    "completed" => source.Where(q => q.Status == QuoteStatus.Completed),
+                    "cancelled" => source.Where(q => q.Status == QuoteStatus.Cancelled || q.Status == QuoteStatus.Rejected),
+                    _ => source
+                };
+            }
+            else if (query.Status.HasValue)
             {
                 source = source.Where(q => q.Status == query.Status.Value);
             }

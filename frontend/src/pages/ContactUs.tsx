@@ -4,6 +4,15 @@ import { Link } from 'react-router-dom';
 import { logger } from '../lib/logger';
 import { ROUTES } from '../lib/routes';
 import contactStudioImage from '../assets/images/contact-studio.jpg';
+import { useShopContact } from '../hooks/useShopContact';
+import {
+  DEFAULT_SHOP_FACEBOOK_URL,
+  DEFAULT_SHOP_HOTLINE,
+  DEFAULT_SHOP_MESSENGER_URL,
+  DEFAULT_SHOP_ZALO_PHONE,
+  buildShopZaloUrl,
+  buildTelUrl,
+} from '../services/shopContactService';
 
 const TOPIC_PRESETS = [
   'Đặt áo lớp / áo nhóm custom',
@@ -79,22 +88,53 @@ const ContactUs = () => {
     }
   };
 
+  const { data: contact } = useShopContact();
+  const hotline = contact?.hotline || DEFAULT_SHOP_HOTLINE;
+  const zaloPhone = contact?.zaloPhone || DEFAULT_SHOP_ZALO_PHONE;
+  const email = contact?.email || 'contact@haushop.vn';
+  const messengerUrl = contact?.messengerLink || DEFAULT_SHOP_MESSENGER_URL;
+  const facebookUrl = contact?.facebookLink || DEFAULT_SHOP_FACEBOOK_URL;
+
   const contactChannels = [
     {
       key: 'phone',
       icon: 'lucide:phone',
       title: 'Hotline tư vấn',
-      content: '+88015-88888-9999',
+      content: hotline,
       note: 'Hỗ trợ nhanh đơn gấp & đặt áo nhóm',
-      href: 'tel:+8801588888999',
+      href: buildTelUrl(hotline) || `tel:${hotline.replace(/\D/g, '')}`,
+    },
+    {
+      key: 'zalo',
+      icon: 'lucide:message-circle',
+      title: 'Zalo tư vấn',
+      content: zaloPhone,
+      note: 'Trao đổi mẫu mockup & chất liệu vải',
+      href: buildShopZaloUrl(zaloPhone),
+    },
+    {
+      key: 'messenger',
+      icon: 'mdi:facebook-messenger',
+      title: 'Chat Messenger',
+      content: 'm.me/61596220172115',
+      note: 'Nhắn tin trực tiếp qua Facebook Messenger',
+      href: messengerUrl,
+    },
+    {
+      key: 'facebook',
+      icon: 'mdi:facebook',
+      title: 'Fanpage Facebook',
+      content: 'HauShop Fanpage',
+      note: 'Cập nhật mẫu áo & hoạt động xưởng',
+      href: facebookUrl,
     },
     {
       key: 'email',
       icon: 'lucide:mail',
       title: 'Email thiết kế',
-      content: 'haucter2k5@gmail.com',
+      content: email,
       note: 'Gửi file logo, mockup & yêu cầu chi tiết',
-      href: 'mailto:haucter2k5@gmail.com',
+      href: `mailto:${email}`,
     },
     {
       key: 'address',
@@ -166,7 +206,7 @@ const ContactUs = () => {
                 </p>
               </div>
 
-              <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {contactChannels.map((item) => {
                   const isExternal = item.href.startsWith('http');
                   const isCopied = copiedKey === item.key;

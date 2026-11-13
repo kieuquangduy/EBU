@@ -13,13 +13,14 @@ export function useMyQuotes(filters: QuoteRequestFilterDto) {
   const normalized = useMemo(
     () => ({
       status: filters.status || undefined,
+      statusGroup: filters.statusGroup || undefined,
       search: filters.search?.trim() || undefined,
       fromDate: filters.fromDate || undefined,
       toDate: filters.toDate || undefined,
       page: filters.page ?? 1,
       pageSize: filters.pageSize ?? 10,
     }),
-    [filters.fromDate, filters.page, filters.pageSize, filters.search, filters.status, filters.toDate]
+    [filters.fromDate, filters.page, filters.pageSize, filters.search, filters.status, filters.statusGroup, filters.toDate]
   );
 
   return useQuery({

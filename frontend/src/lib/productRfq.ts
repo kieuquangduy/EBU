@@ -1,5 +1,5 @@
 import type { ProductDto, ProductSummaryDto } from "../@types/product.type";
-import { buildZaloUrl } from "../services/shopContactService";
+import { buildShopZaloUrl } from "../services/shopContactService";
 
 type PriceSource = Pick<
   ProductSummaryDto | ProductDto,
@@ -58,8 +58,7 @@ export async function openZaloProductConsult(options: {
   productName: string;
   productUrl: string;
 }): Promise<{ opened: boolean; copied: boolean }> {
-  const zaloUrl = buildZaloUrl(options.zaloPhone);
-  if (!zaloUrl) return { opened: false, copied: false };
+  const zaloUrl = buildShopZaloUrl(options.zaloPhone);
 
   const copied = await copyTextQuietly(`Tư vấn mẫu áo: ${options.productName} - ${options.productUrl}`);
   window.open(zaloUrl, "_blank", "noopener,noreferrer");

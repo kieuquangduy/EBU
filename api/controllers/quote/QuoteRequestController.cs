@@ -33,9 +33,14 @@ namespace api.controllers.quote
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
         public async Task<IActionResult> Create(
-            [FromBody] CreateQuoteRequestDto dto,
+            [FromBody] CreateQuoteRequestDto? dto,
             CancellationToken ct)
         {
+            if (dto is null)
+            {
+                return BadRequest(new { message = "Dữ liệu yêu cầu báo giá không hợp lệ." });
+            }
+
             var validation = await _createValidator.ValidateAsync(dto, ct);
             if (!validation.IsValid)
             {
@@ -50,7 +55,7 @@ namespace api.controllers.quote
         [HttpPost("logos")]
         [AllowAnonymous]
         [RfqRateLimit(PermitLimit = 10, WindowSeconds = 600)]
-        [RequestSizeLimit(55 * 1024 * 1024)] // 5 files x 10MB + multipart overhead
+        [RequestSizeLimit(110 * 1024 * 1024)] // 10 files x 10MB + multipart overhead
         [ProducesResponseType(typeof(List<LogoFileRefDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> UploadLogos(

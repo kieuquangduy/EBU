@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using api.models.enums;
 
 namespace api.DTOs.quote
@@ -19,7 +20,9 @@ namespace api.DTOs.quote
         public string? OrganizationName { get; set; }
         public int Quantity { get; set; }
         public string? Material { get; set; }
-        public PrintTechnique PrintTechnique { get; set; } = PrintTechnique.ScreenPrint;
+
+        [JsonConverter(typeof(NullablePrintTechniqueJsonConverter))]
+        public PrintTechnique? PrintTechnique { get; set; }
         public Dictionary<string, int>? SizeBreakdown { get; set; }
         public string? ColorSelection { get; set; }
         public List<LogoFileRefDto>? LogoFiles { get; set; }
@@ -35,6 +38,7 @@ namespace api.DTOs.quote
     public class QuoteRequestQueryDto
     {
         public QuoteStatus? Status { get; set; }
+        public string? StatusGroup { get; set; }
         public DateTime? FromDate { get; set; }
         public DateTime? ToDate { get; set; }
         public string? Search { get; set; }
@@ -54,6 +58,10 @@ namespace api.DTOs.quote
         public decimal QuotedPrice { get; set; }
         public string? QuotedNote { get; set; }
         public string? InternalNote { get; set; }
+
+        [JsonConverter(typeof(NullablePrintTechniqueJsonConverter))]
+        public PrintTechnique? PrintTechnique { get; set; }
+        public DateTime? ExpectedDeliveryDate { get; set; }
     }
 
     public class AssignQuoteAdminDto

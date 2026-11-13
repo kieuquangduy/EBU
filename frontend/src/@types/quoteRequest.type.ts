@@ -28,11 +28,11 @@ export interface CreateQuoteRequestDto {
   productId?: string | null;
   customerName: string;
   phone: string;
-  email?: string | null;
+  email: string;
   organizationName?: string | null;
   quantity: number;
   material?: string | null;
-  printTechnique: PrintTechnique;
+  printTechnique?: PrintTechnique | null;
   sizeBreakdown?: Record<string, number> | null;
   colorSelection?: string | null;
   logoFiles?: LogoFileRefDto[] | null;
@@ -84,6 +84,7 @@ export interface QuoteRequestDto extends QuoteRequestSummaryDto {
 
 export interface QuoteRequestFilterDto {
   status?: QuoteStatus | "";
+  statusGroup?: "pending" | "accepted" | "completed" | "cancelled" | "";
   fromDate?: string;
   toDate?: string;
   assignedAdminId?: string;
@@ -109,6 +110,8 @@ export interface UpdateQuotePriceDto {
   quotedPrice: number;
   quotedNote?: string | null;
   internalNote?: string | null;
+  printTechnique?: PrintTechnique | null;
+  expectedDeliveryDate?: string | null;
 }
 
 export interface AssignQuoteAdminDto {

@@ -25,9 +25,9 @@ namespace api.validators.quote
                 .Must(IsValidVnPhone).WithMessage("Số điện thoại Việt Nam không hợp lệ (vd: 0901234567 hoặc +84901234567)");
 
             RuleFor(x => x.Email)
+                .NotEmpty().WithMessage("Vui lòng nhập email")
                 .EmailAddress().WithMessage("Email không hợp lệ")
-                .MaximumLength(200).WithMessage("Email tối đa 200 ký tự")
-                .When(x => !string.IsNullOrWhiteSpace(x.Email));
+                .MaximumLength(200).WithMessage("Email tối đa 200 ký tự");
 
             RuleFor(x => x.OrganizationName)
                 .MaximumLength(200).WithMessage("Tên CLB / lớp tối đa 200 ký tự")
@@ -42,7 +42,8 @@ namespace api.validators.quote
                 .When(x => !string.IsNullOrWhiteSpace(x.Material));
 
             RuleFor(x => x.PrintTechnique)
-                .IsInEnum().WithMessage("Kỹ thuật in không hợp lệ");
+                .IsInEnum().WithMessage("Kỹ thuật in không hợp lệ")
+                .When(x => x.PrintTechnique.HasValue);
 
             RuleFor(x => x.ColorSelection)
                 .MaximumLength(100).WithMessage("Màu sắc tối đa 100 ký tự")
@@ -73,7 +74,7 @@ namespace api.validators.quote
                 .WithMessage("Tổng số lượng theo bảng size phải khớp với tổng số lượng đặt");
 
             RuleFor(x => x.LogoFiles)
-                .Must(files => files!.Count <= 5).WithMessage("Tối đa 5 file logo")
+                .Must(files => files!.Count <= 10).WithMessage("Tối đa 10 file đính kèm")
                 .Must(HaveValidLogoRefs).WithMessage("Tên file logo không hợp lệ")
                 .When(x => x.LogoFiles is { Count: > 0 });
         }
@@ -104,7 +105,7 @@ namespace api.validators.quote
         [GeneratedRegex(@"^(0|\+84)(3|5|7|8|9)[0-9]{8}$")]
         private static partial Regex VnPhoneRegex();
 
-        [GeneratedRegex(@"^[a-f0-9]{32}\.(png|jpg|jpeg|svg|pdf|ai)$", RegexOptions.IgnoreCase)]
+        [GeneratedRegex(@"^[a-f0-9]{32}\.(png|jpg|jpeg|svg|pdf|ai|xlsx|xls|docx|doc)$", RegexOptions.IgnoreCase)]
         private static partial Regex SafeStoredFileNameRegex();
     }
 
@@ -136,6 +137,15 @@ namespace api.validators.quote
             RuleFor(x => x.InternalNote)
                 .MaximumLength(1000).WithMessage("Ghi chú nội bộ tối đa 1000 ký tự")
                 .When(x => !string.IsNullOrWhiteSpace(x.InternalNote));
+
+            RuleFor(x => x.PrintTechnique)
+                .IsInEnum().WithMessage("Kỹ thuật in không hợp lệ")
+                .When(x => x.PrintTechnique.HasValue);
+
+            RuleFor(x => x.ExpectedDeliveryDate)
+                .Must(date => date!.Value.Date >= DateTime.UtcNow.Date)
+                .WithMessage("Ngày dự kiến giao hàng không được ở quá khứ")
+                .When(x => x.ExpectedDeliveryDate.HasValue);
         }
     }
 }
