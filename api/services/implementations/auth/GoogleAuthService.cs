@@ -46,10 +46,15 @@ namespace api.services.implementations.auth
             _logger = logger;
         }
 
-        public string BuildAuthorizationUrl(string state)
+        public string BuildAuthorizationUrl(string state, string? overrideRedirectUri = null)
         {
-            var clientId = _config["Google:ClientId"] ?? throw new InvalidOperationException("Google: ClientId is not configure");
-            var redirectUri = _config["Google:RedirectUri"] ?? throw new InvalidOperationException("Google: RedirectUri is not configured");
+            var clientId = _config["Google:ClientId"]
+                ?? _config["Google__ClientId"]
+                ?? throw new InvalidOperationException("Google: ClientId is not configured. Please add Google__ClientId in Environment Variables.");
+
+            var redirectUri = !string.IsNullOrWhiteSpace(overrideRedirectUri)
+                ? overrideRedirectUri
+                : (_config["Google:RedirectUri"] ?? _config["Google__RedirectUri"] ?? throw new InvalidOperationException("Google: RedirectUri is not configured. Please add Google__RedirectUri in Environment Variables."));
 
             var query = new Dictionary<string, string>
             {
@@ -67,13 +72,13 @@ namespace api.services.implementations.auth
             return $"{AuthEndpoint}?{queryString}";
 
         }
-        public async Task<AuthResponseDto> HandleCallbackAsync(string code, string state, string expectedState)
+        public async Task<AuthResponseDto> HandleCallbackAsync(string code, string state, string expectedState, string? overrideRedirectUri = null)
         {
             if (string.IsNullOrWhiteSpace(state) || state != expectedState)
             {
                 throw new ApiAuthenticationException("Invalid OAuth state");
             }
-            var googleAccessToken = await ExchangeCodeForTokenAsync(code);
+            var googleAccessToken = await ExchangeCodeForTokenAsync(code, overrideRedirectUri);
             var googleUser = await GetGoogleUserInfoAsync(googleAccessToken);
             if (!googleUser.EmailVerified)
                 throw new ApiAuthenticationException("Google email is not verified");
@@ -122,13 +127,19 @@ namespace api.services.implementations.auth
 
         // --- Helper: Chuyen doi code, ham xu li giay thong hanh
         // chuyen doi tu code sang access token 
-        private async Task<string> ExchangeCodeForTokenAsync(string code)
+        private async Task<string> ExchangeCodeForTokenAsync(string code, string? overrideRedirectUri = null)
         {
-            var clientId = _config["Google:ClientId"];
+            var clientId = _config["Google:ClientId"]
+                ?? _config["Google__ClientId"]
+                ?? throw new InvalidOperationException("Google: ClientId is not configured.");
             var clientSecret = _config["Google:ClientSecret"]
-            ?? throw new InvalidOperationException("Google:ClientSecret is not configure");
+                ?? _config["Google__ClientSecret"]
+                ?? throw new InvalidOperationException("Google: ClientSecret is not configured.");
 
-            var redirect_uri = _config["Google:RedirectUri"];
+            var redirect_uri = !string.IsNullOrWhiteSpace(overrideRedirectUri)
+                ? overrideRedirectUri
+                : (_config["Google:RedirectUri"] ?? _config["Google__RedirectUri"] ?? "https://localhost:7288/api/auth/google/callback");
+
             var payload = new Dictionary<string, string>
             {
                 ["code"] = code,
@@ -143,7 +154,7 @@ namespace api.services.implementations.auth
             if (!res.IsSuccessStatusCode)
             {
                 var body = await res.Content.ReadAsStringAsync();
-                _logger.LogError("Google token exchange fail");
+                _logger.LogError("Google token exchange fail: {Body}", body);
                 throw new ApiAuthenticationException("Failed to exchange Google authorization code");
             }
             var json = await res.Content.ReadFromJsonAsync<JsonElement>();

@@ -70,8 +70,8 @@ namespace api.middleware
             var env = context.RequestServices?.GetService<IHostEnvironment>();
             var isDev = env?.IsDevelopment() ?? false;
 
-            var safeDetail = statusCode >= 500
-                ? (isDev ? $"{exception.GetType().Name}: {exception.Message}" : null)
+            var safeDetail = isDev
+                ? $"{exception.GetType().Name}: {exception.Message}"
                 : detail;
 
             var problem = new ProblemDetails
@@ -86,7 +86,7 @@ namespace api.middleware
                 }
             };
 
-            if (isDev && statusCode >= 500)
+            if (isDev)
             {
                 problem.Extensions["exception"] = exception.Message;
                 if (exception.InnerException != null)
