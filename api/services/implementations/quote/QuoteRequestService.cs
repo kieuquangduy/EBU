@@ -129,7 +129,14 @@ namespace api.services.implementations.quote
             _context.QuoteRequests.Add(entity);
             await _context.SaveChangesAsync(ct);
 
-            await DispatchCreatedNotificationsAsync(entity, product?.Name, ct);
+            try
+            {
+                await DispatchCreatedNotificationsAsync(entity, product?.Name, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Notification dispatch failed for RFQ {QuoteCode}", entity.QuoteCode);
+            }
 
             return new CreateQuoteRequestResultDto
             {

@@ -230,8 +230,12 @@ namespace api.services.implementations.auth
             string subject,
             string htmlBody)
         {
-            if (string.IsNullOrWhiteSpace(_settings.SmtpServer))
+            if (string.IsNullOrWhiteSpace(_settings.SmtpServer) ||
+                string.IsNullOrWhiteSpace(_settings.Username) ||
+                string.IsNullOrWhiteSpace(_settings.Password) ||
+                string.IsNullOrWhiteSpace(_settings.SenderEmail))
             {
+                _logger.LogInformation("SMTP credentials are not fully configured. Email sending skipped for {To}", to);
                 return;
             }
 
@@ -250,6 +254,7 @@ namespace api.services.implementations.auth
             }.ToMessageBody();
 
             using var smtp = new SmtpClient();
+            smtp.Timeout = 5000;
 
             await smtp.ConnectAsync(
                 _settings.SmtpServer,

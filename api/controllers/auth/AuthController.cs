@@ -231,16 +231,28 @@ namespace api.controllers
                 }
             };
 
+        private bool IsSecureRequest()
+        {
+            if (Request.IsHttps) return true;
+            var proto = Request.Headers["X-Forwarded-Proto"].ToString();
+            if (proto.Contains("https", StringComparison.OrdinalIgnoreCase)) return true;
+            var origin = Request.Headers["Origin"].ToString();
+            if (origin.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return true;
+            var referer = Request.Headers["Referer"].ToString();
+            if (referer.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
         private void SetAccessTokenCookie(string token)
         {
             var accessTokenExpiration = _config.GetValue<int>("Jwt:AccessTokenExpirationMinutes", 15);
-            bool isHttps = Request.IsHttps || Request.Headers["X-Forwarded-Proto"] == "https";
+            bool isSecure = IsSecureRequest();
 
             Response.Cookies.Append("accessToken", token, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = isHttps,
-                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax,
+                Secure = isSecure,
+                SameSite = isSecure ? SameSiteMode.None : SameSiteMode.Lax,
                 Expires = DateTimeOffset.UtcNow.AddMinutes(accessTokenExpiration),
                 Path = "/"
             });
@@ -249,13 +261,13 @@ namespace api.controllers
         private void SetRefreshTokenCookie(string token)
         {
             var refreshTokenLifetime = _tokenService.GetRefreshTokenLifetime();
-            bool isHttps = Request.IsHttps || Request.Headers["X-Forwarded-Proto"] == "https";
+            bool isSecure = IsSecureRequest();
 
             Response.Cookies.Append("refreshToken", token, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = isHttps,
-                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax,
+                Secure = isSecure,
+                SameSite = isSecure ? SameSiteMode.None : SameSiteMode.Lax,
                 Expires = DateTimeOffset.UtcNow.Add(refreshTokenLifetime),
                 Path = "/"
             });
@@ -277,20 +289,20 @@ namespace api.controllers
 
         private void DeleteTokenCookies()
         {
-            bool isHttps = Request.IsHttps || Request.Headers["X-Forwarded-Proto"] == "https";
+            bool isSecure = IsSecureRequest();
 
             Response.Cookies.Delete("accessToken", new CookieOptions
             {
                 Path = "/",
-                Secure = isHttps,
-                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax
+                Secure = isSecure,
+                SameSite = isSecure ? SameSiteMode.None : SameSiteMode.Lax
             });
 
             Response.Cookies.Delete("refreshToken", new CookieOptions
             {
                 Path = "/",
-                Secure = isHttps,
-                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax
+                Secure = isSecure,
+                SameSite = isSecure ? SameSiteMode.None : SameSiteMode.Lax
             });
         }
     }

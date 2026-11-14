@@ -59,15 +59,12 @@ var builder = WebApplication.CreateBuilder(args);
 // ===========================
 builder.Configuration.AddEnvironmentVariables();
 
-if (builder.Configuration.GetValue<bool>("ForwardedHeaders:Enabled"))
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownNetworks.Clear();
-        options.KnownProxies.Clear();
-    });
-}
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // ===========================
 // CONTROLLERS & API EXPLORER
@@ -227,8 +224,18 @@ builder.Services.AddAuthentication(options =>
 
             if (string.IsNullOrEmpty(token))
             {
-                if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
+                if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                     token = authHeader["Bearer ".Length..].Trim();
+            }
+
+            var path = context.HttpContext.Request.Path;
+            if (string.IsNullOrEmpty(token) && path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase))
+            {
+                var queryToken = context.Request.Query["access_token"].FirstOrDefault();
+                if (!string.IsNullOrEmpty(queryToken))
+                {
+                    token = queryToken;
+                }
             }
 
             context.Token = token;
@@ -419,10 +426,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-if (app.Configuration.GetValue<bool>("ForwardedHeaders:Enabled"))
-{
-    app.UseForwardedHeaders();
-}
+app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
