@@ -231,7 +231,7 @@ builder.Services.AddAuthentication(options =>
             var path = context.HttpContext.Request.Path;
             if (string.IsNullOrEmpty(token) && path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase))
             {
-                var queryToken = context.Request.Query["access_token"].FirstOrDefault();
+                string? queryToken = context.Request.Query["access_token"];
                 if (!string.IsNullOrEmpty(queryToken))
                 {
                     token = queryToken;

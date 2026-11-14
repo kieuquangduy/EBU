@@ -235,7 +235,6 @@ namespace api.services.implementations.auth
                 string.IsNullOrWhiteSpace(_settings.Password) ||
                 string.IsNullOrWhiteSpace(_settings.SenderEmail))
             {
-                _logger.LogInformation("SMTP credentials are not fully configured. Email sending skipped for {To}", to);
                 return;
             }
 
