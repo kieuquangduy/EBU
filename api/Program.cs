@@ -484,6 +484,21 @@ if (applyMigrationsOnStartup)
             await context.Database.MigrateAsync();
             logger.LogInformation("Database migrations applied successfully");
         }
+
+        if (!await context.Products.AnyAsync())
+        {
+            logger.LogInformation("Products table is empty. Running initial seed...");
+            var seedService = services.GetRequiredService<SeedService>();
+            var seedResult = await seedService.SeedAllAsync();
+            if (seedResult.Success)
+            {
+                logger.LogInformation("Initial seed completed successfully.");
+            }
+            else
+            {
+                logger.LogWarning("Initial seed warning: {Error}", seedResult.Error);
+            }
+        }
     }
     catch (Exception ex)
     {
