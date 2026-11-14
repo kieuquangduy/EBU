@@ -10,6 +10,10 @@ export const ROUTES = {
   PROFILE: "/profile",
   ADMIN: "/admin",
   WISHLIST: "/wishlist",
+  POLICIES: "/policies",
+  POLICIES_DELIVERY: "/policies/delivery",
+  POLICIES_RETURNS: "/policies/returns",
+  POLICIES_PRIVACY: "/policies/privacy",
 } as const;
 
 export const routeTo = {

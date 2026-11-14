@@ -28,10 +28,11 @@ const Footer = () => {
   ];
 
   const policyLinks = [
+    { title: "Vận chuyển & Sản xuất", to: "/policies/delivery" },
+    { title: "Đổi trả & Bảo hành", to: "/policies/returns" },
+    { title: "Bảo mật thông tin", to: "/policies/privacy" },
     { title: "Về HauShop", to: "/about-us" },
-    { title: "Liên hệ & Tư vấn", to: "/contact-us" },
-    { title: "Mẫu áo Custom", to: ROUTES.SHOP },
-    { title: "Chat trực tuyến", to: "/?chat=support" },
+    { title: "Liên hệ xưởng", to: "/contact-us" },
   ];
 
   return (
@@ -152,8 +153,16 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 justify-center text-white/60 text-sm">
-          <span>Copyright HauShop {currentYear}. All rights reserved.</span>
+        <div className="mt-8 pt-8 border-t border-white/20 text-center space-y-2">
+          <p className="text-xs font-bold text-amber-300 tracking-wide">
+            Student project – E-Business, Hanoi University
+          </p>
+          <p className="text-[11px] text-white/65 max-w-2xl mx-auto leading-relaxed">
+            Dự án nghiên cứu thử nghiệm thuộc học phần Thương mại điện tử (E-Business), Khoa Công nghệ Thông tin – Trường Đại học Hà Nội (HANU). Tất cả sản phẩm, dịch vụ và biểu mẫu trên website hoạt động ở chế độ thử nghiệm (Test Mode), không diễn ra giao dịch thương mại thực tế.
+          </p>
+          <p className="text-[11px] text-white/40 pt-1">
+            Copyright HauShop {currentYear}. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>

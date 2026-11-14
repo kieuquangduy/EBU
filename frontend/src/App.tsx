@@ -19,6 +19,7 @@ const Profile = lazy(() => import("./pages/account/Profile"));
 const ChangePassword = lazy(() => import("./pages/account/ChangePassword"));
 const ContactUs = lazy(() => import("./pages/ContactUs"));
 const AboutUs = lazy(() => import("./pages/AboutUs"));
+const PoliciesPage = lazy(() => import("./pages/PoliciesPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ShopPage = lazy(() => import("./pages/ShopPage"));
 const ProductDetailPage = lazy(() => import("./pages/ShopPageDetail"));
@@ -58,6 +59,7 @@ function titleForPath(pathname: string) {
   if (path === "/change-password") return `Đổi mật khẩu | ${APP_NAME}`;
   if (path === "/contact-us") return `Liên hệ | ${APP_NAME}`;
   if (path === "/about-us") return `Về ${APP_NAME}`;
+  if (path.startsWith("/policies")) return `Chính sách & Quy định | ${APP_NAME}`;
   if (path === "/reviews") return `Đánh giá của tôi | ${APP_NAME}`;
   if (path === "/notifications") return `Thông báo | ${APP_NAME}`;
   if (path === "/support-chat") return `Hỗ trợ | ${APP_NAME}`;
@@ -265,6 +267,10 @@ function App() {
           />
           <Route path="/contact-us" element={<SuspendedRoute><ContactUs /></SuspendedRoute>} />
           <Route path="/about-us" element={<SuspendedRoute><AboutUs /></SuspendedRoute>} />
+          <Route path="/policies" element={<SuspendedRoute><PoliciesPage /></SuspendedRoute>} />
+          <Route path="/policies/delivery" element={<SuspendedRoute><PoliciesPage /></SuspendedRoute>} />
+          <Route path="/policies/returns" element={<SuspendedRoute><PoliciesPage /></SuspendedRoute>} />
+          <Route path="/policies/privacy" element={<SuspendedRoute><PoliciesPage /></SuspendedRoute>} />
           <Route path="/quotes" element={<SuspendedRoute><MyQuotesPage /></SuspendedRoute>} />
           <Route
             path="/quotes/:id"

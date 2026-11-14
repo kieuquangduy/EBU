@@ -393,6 +393,16 @@ export default function QuoteRequestModal({
                 </div>
               </div>
 
+              <div className="mx-auto max-w-md rounded-lg border border-amber-200 bg-amber-50/90 p-3 text-center">
+                <p className="text-xs font-bold text-amber-900 flex items-center justify-center gap-1.5">
+                  <Icon icon="lucide:graduation-cap" width={15} />
+                  Student project – E-Business, Hanoi University
+                </p>
+                <p className="mt-1 text-[11px] text-amber-800 leading-snug">
+                  Đơn yêu cầu báo giá thử nghiệm (Test Order) đã ghi nhận thành công. Không phát sinh thanh toán thật theo quy định dự án môn học.
+                </p>
+              </div>
+
               <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                 {isAuthenticated ? (
                   <Link
