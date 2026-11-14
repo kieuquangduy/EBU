@@ -206,7 +206,7 @@ namespace api.services.implementations.chat
             }
 
             var rows = await query
-                .OrderByDescending(t => t.ChatRoom.Messages.Max(m => (DateTime?)m.Created) ?? t.Created)
+                .OrderByDescending(t => t.Created)
                 .Take(100)
                 .Select(t => new
                 {
@@ -230,74 +230,104 @@ namespace api.services.implementations.chat
                     t.Status,
                     t.Priority,
                     t.Created,
-                    t.ClosedAt,
-                    UnreadCount = t.ChatRoom.Messages.Count(m => !m.IsRead && m.SenderId != userId),
-                    LastMessage = t.ChatRoom.Messages
-                        .OrderByDescending(m => m.Created)
-                        .Select(m => new
-                        {
-                            m.Id,
-                            m.ChatRoomId,
-                            m.SenderId,
-                            SenderFirstName = m.Sender.FirstName,
-                            SenderLastName = m.Sender.LastName,
-                            SenderEmail = m.Sender.Email,
-                            SenderAvatar = m.Sender.Avatar,
-                            SenderRole = m.Sender.Role,
-                            m.Message,
-                            m.MessageType,
-                            m.AttachmentsJson,
-                            m.MetadataJson,
-                            m.IsRead,
-                            m.ReadAt,
-                            m.Created
-                        })
-                        .FirstOrDefault()
+                    t.ClosedAt
                 })
                 .ToListAsync(ct);
 
-            return rows.Select(row => new ChatRoomDto
+            if (rows.Count == 0)
             {
-                Id = row.ChatRoomId,
-                Name = row.RoomName,
-                Type = row.RoomType.ToString(),
-                CustomerId = row.CustomerId,
-                CustomerName = BuildFullName(row.CustomerFirstName, row.CustomerLastName, row.CustomerEmail),
-                CustomerEmail = row.CustomerEmail,
-                CustomerAvatar = row.CustomerAvatar,
-                CustomerPhone = row.CustomerPhone,
-                CustomerIsOnline = row.CustomerIsOnline,
-                CustomerLastSeen = row.CustomerLastSeen,
-                AssignedToId = row.AssignedToId,
-                ProductId = row.ProductId,
-                ProductName = row.ProductName,
-                ProductSlug = row.ProductSlug,
-                QuoteRequestId = row.QuoteRequestId,
-                QuoteCode = row.QuoteCode,
-                Status = row.Status.ToString(),
-                Priority = row.Priority.ToString(),
-                UnreadCount = row.UnreadCount,
-                LastMessage = row.LastMessage is null ? null : new ChatMessageDto
+                return Array.Empty<ChatRoomDto>();
+            }
+
+            var roomIds = rows.Select(r => r.ChatRoomId).ToList();
+
+            var unreadCounts = await _context.ChatMessages
+                .AsNoTracking()
+                .Where(m => roomIds.Contains(m.ChatRoomId) && !m.IsRead && m.SenderId != userId)
+                .GroupBy(m => m.ChatRoomId)
+                .Select(g => new { RoomId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.RoomId, x => x.Count, ct);
+
+            var messages = await _context.ChatMessages
+                .AsNoTracking()
+                .Where(m => roomIds.Contains(m.ChatRoomId))
+                .OrderByDescending(m => m.Created)
+                .Select(m => new
                 {
-                    Id = row.LastMessage.Id,
-                    ChatRoomId = row.LastMessage.ChatRoomId,
-                    SenderId = row.LastMessage.SenderId,
-                    SenderName = BuildFullName(
-                        row.LastMessage.SenderFirstName,
-                        row.LastMessage.SenderLastName,
-                        row.LastMessage.SenderEmail),
-                    SenderAvatar = row.LastMessage.SenderAvatar,
-                    SenderRole = row.LastMessage.SenderRole.ToString(),
-                    Message = row.LastMessage.Message,
-                    MessageType = row.LastMessage.MessageType.ToString(),
-                    Attachments = DeserializeAttachments(row.LastMessage.AttachmentsJson),
-                    ProductCard = DeserializeProductCard(row.LastMessage.MetadataJson),
-                    IsRead = row.LastMessage.IsRead,
-                    ReadAt = row.LastMessage.ReadAt,
-                    Created = row.LastMessage.Created
-                },
-                Created = row.Created,
-                ClosedAt = row.ClosedAt
+                    m.Id,
+                    m.ChatRoomId,
+                    m.SenderId,
+                    SenderFirstName = m.Sender.FirstName,
+                    SenderLastName = m.Sender.LastName,
+                    SenderEmail = m.Sender.Email,
+                    SenderAvatar = m.Sender.Avatar,
+                    SenderRole = m.Sender.Role,
+                    m.Message,
+                    m.MessageType,
+                    m.AttachmentsJson,
+                    m.MetadataJson,
+                    m.IsRead,
+                    m.ReadAt,
+                    m.Created
+                })
+                .ToListAsync(ct);
+
+            var latestByRoom = messages
+                .GroupBy(m => m.ChatRoomId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var sortedRows = rows
+                .OrderByDescending(r => latestByRoom.TryGetValue(r.ChatRoomId, out var lm) ? lm.Created : r.Created)
+                .ToList();
+
+            return sortedRows.Select(row =>
+            {
+                latestByRoom.TryGetValue(row.ChatRoomId, out var lastMsg);
+                unreadCounts.TryGetValue(row.ChatRoomId, out var unread);
+
+                return new ChatRoomDto
+                {
+                    Id = row.ChatRoomId,
+                    Name = row.RoomName,
+                    Type = row.RoomType.ToString(),
+                    CustomerId = row.CustomerId,
+                    CustomerName = BuildFullName(row.CustomerFirstName, row.CustomerLastName, row.CustomerEmail),
+                    CustomerEmail = row.CustomerEmail,
+                    CustomerAvatar = row.CustomerAvatar,
+                    CustomerPhone = row.CustomerPhone,
+                    CustomerIsOnline = row.CustomerIsOnline,
+                    CustomerLastSeen = row.CustomerLastSeen,
+                    AssignedToId = row.AssignedToId,
+                    ProductId = row.ProductId,
+                    ProductName = row.ProductName,
+                    ProductSlug = row.ProductSlug,
+                    QuoteRequestId = row.QuoteRequestId,
+                    QuoteCode = row.QuoteCode,
+                    Status = row.Status.ToString(),
+                    Priority = row.Priority.ToString(),
+                    UnreadCount = unread,
+                    LastMessage = lastMsg is null ? null : new ChatMessageDto
+                    {
+                        Id = lastMsg.Id,
+                        ChatRoomId = lastMsg.ChatRoomId,
+                        SenderId = lastMsg.SenderId,
+                        SenderName = BuildFullName(
+                            lastMsg.SenderFirstName,
+                            lastMsg.SenderLastName,
+                            lastMsg.SenderEmail),
+                        SenderAvatar = lastMsg.SenderAvatar,
+                        SenderRole = lastMsg.SenderRole.ToString(),
+                        Message = lastMsg.Message,
+                        MessageType = lastMsg.MessageType.ToString(),
+                        Attachments = DeserializeAttachments(lastMsg.AttachmentsJson),
+                        ProductCard = DeserializeProductCard(lastMsg.MetadataJson),
+                        IsRead = lastMsg.IsRead,
+                        ReadAt = lastMsg.ReadAt,
+                        Created = lastMsg.Created
+                    },
+                    Created = row.Created,
+                    ClosedAt = row.ClosedAt
+                };
             }).ToList();
         }
 
