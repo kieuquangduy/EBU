@@ -49,9 +49,12 @@ export function useChatConnection({
     if (!enabled) return null;
 
     return new signalR.HubConnectionBuilder()
-      .withUrl(SIGNALR_HUB_URL, { withCredentials: true })
+      .withUrl(SIGNALR_HUB_URL, {
+        withCredentials: true,
+        transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
+      })
       .withAutomaticReconnect()
-      .configureLogging(signalR.LogLevel.Warning)
+      .configureLogging(signalR.LogLevel.None)
       .build();
   }, [enabled]);
 

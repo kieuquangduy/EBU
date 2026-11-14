@@ -431,6 +431,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("AllowReactApp");
+app.UseWebSockets();
 app.UseResponseCaching();
 app.UseRedisInfrastructure();
 app.UseAuthentication();

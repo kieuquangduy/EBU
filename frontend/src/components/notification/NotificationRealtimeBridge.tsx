@@ -17,9 +17,12 @@ export default function NotificationRealtimeBridge() {
 
     let cancelled = false;
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(NOTIFICATION_HUB_URL, { withCredentials: true })
+      .withUrl(NOTIFICATION_HUB_URL, {
+        withCredentials: true,
+        transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
+      })
       .withAutomaticReconnect()
-      .configureLogging(signalR.LogLevel.Warning)
+      .configureLogging(signalR.LogLevel.None)
       .build();
 
     connection.on("ReceiveNotification", (notification: NotificationDto) => {
