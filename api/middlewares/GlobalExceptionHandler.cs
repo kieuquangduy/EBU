@@ -2,6 +2,8 @@ using api.common;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace api.middleware
 {
@@ -65,7 +67,13 @@ namespace api.middleware
 
             context.Response.StatusCode = statusCode;
 
-            var safeDetail = statusCode >= 500 ? null : detail;
+            var env = context.RequestServices?.GetService<IHostEnvironment>();
+            var isDev = env?.IsDevelopment() ?? false;
+
+            var safeDetail = statusCode >= 500
+                ? (isDev ? $"{exception.GetType().Name}: {exception.Message}" : null)
+                : detail;
+
             var problem = new ProblemDetails
             {
                 Status = statusCode,
@@ -77,6 +85,15 @@ namespace api.middleware
                     ["traceId"] = traceId
                 }
             };
+
+            if (isDev && statusCode >= 500)
+            {
+                problem.Extensions["exception"] = exception.Message;
+                if (exception.InnerException != null)
+                {
+                    problem.Extensions["innerException"] = exception.InnerException.Message;
+                }
+            }
 
             if (exception is ValidationException validationException)
             {
