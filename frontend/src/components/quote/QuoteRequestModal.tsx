@@ -13,6 +13,7 @@ import { useToast } from "../../context/toastContext";
 import { useAuth } from "../../hooks/useAuth";
 import { useCreateQuoteRequest, useUploadQuoteLogos } from "../../hooks/useQuoteRequests";
 import { routeTo } from "../../lib/routes";
+import { FEATURE_FLAGS } from "../../lib/featureFlags";
 import { resolveProductPricing } from "../../lib/productRfq";
 import { formatPrice } from "../../utils/formatPrice";
 
@@ -404,17 +405,24 @@ export default function QuoteRequestModal({
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                {isAuthenticated ? (
-                  <Link
-                    to={routeTo.quote(createdResult.id)}
-                    onClick={onClose}
-                    className="inline-flex items-center gap-2 rounded-md bg-primeColor px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 transition"
-                  >
-                    Xem chi tiết báo giá
-                  </Link>
+                {/* F2: Xem chi tiết báo giá / Theo dõi tiến độ trực tuyến - Tạm ẩn cho Round 1 */}
+                {FEATURE_FLAGS.ENABLE_QUOTE_TRACKING ? (
+                  isAuthenticated ? (
+                    <Link
+                      to={routeTo.quote(createdResult.id)}
+                      onClick={onClose}
+                      className="inline-flex items-center gap-2 rounded-md bg-primeColor px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 transition"
+                    >
+                      Xem chi tiết báo giá
+                    </Link>
+                  ) : (
+                    <p className="w-full text-xs text-slate-500">
+                      Mẹo: Đăng nhập trước khi gửi để theo dõi lịch sử & tiến độ báo giá trực tuyến.
+                    </p>
+                  )
                 ) : (
-                  <p className="w-full text-xs text-slate-500">
-                    Mẹo: Đăng nhập trước khi gửi để theo dõi lịch sử & tiến độ báo giá trực tuyến.
+                  <p className="w-full text-xs text-slate-500 text-center">
+                    Đội ngũ tư vấn HauShop sẽ liên hệ trực tiếp qua số điện thoại để báo giá chi tiết trong thời gian sớm nhất.
                   </p>
                 )}
                 <button
@@ -658,96 +666,98 @@ export default function QuoteRequestModal({
                 )}
               </div>
 
-              {/* Phần 2: File danh sách kích thước & bảng size - Hàng ngang full-width */}
-              <div className="rounded-md border border-gray-200 bg-gray-50/60 p-3.5">
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon icon="mdi:file-table-box-outline" className="text-primeColor" width={18} />
-                    <label className="text-xs font-bold text-primeColor">
-                      File kích thước &amp; Bảng size (Word, Excel, PDF)
-                    </label>
+              {/* F1: File danh sách kích thước & bảng size - Tạm thời ẩn cho Round 1 theo kịch bản khảo sát (Bật lại trong featureFlags.ts ở Round 2) */}
+              {FEATURE_FLAGS.ENABLE_SIZE_DOC_UPLOAD && (
+                <div className="rounded-md border border-gray-200 bg-gray-50/60 p-3.5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Icon icon="mdi:file-table-box-outline" className="text-primeColor" width={18} />
+                      <label className="text-xs font-bold text-primeColor">
+                        File kích thước &amp; Bảng size (Word, Excel, PDF)
+                      </label>
+                    </div>
+                    <span className="text-[11px] text-slate-500">
+                      {sizeFiles.length}/{MAX_FILES_PER_STREAM} file · .xlsx, .xls, .docx, .doc, .pdf (≤ 10MB)
+                    </span>
                   </div>
-                  <span className="text-[11px] text-slate-500">
-                    {sizeFiles.length}/{MAX_FILES_PER_STREAM} file · .xlsx, .xls, .docx, .doc, .pdf (≤ 10MB)
-                  </span>
-                </div>
 
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragActiveSize(true);
-                  }}
-                  onDragLeave={() => setDragActiveSize(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragActiveSize(false);
-                    void handleSizeFilesSelected(e.dataTransfer.files);
-                  }}
-                  onClick={() => sizeDocInputRef.current?.click()}
-                  className={`flex cursor-pointer items-center justify-center gap-2.5 rounded-md border-2 border-dashed px-4 py-3 text-center transition ${
-                    dragActiveSize
-                      ? "border-primeColor bg-gray-100"
-                      : "border-gray-300 bg-white hover:border-primeColor hover:bg-gray-50"
-                  }`}
-                >
-                  <input
-                    ref={sizeDocInputRef}
-                    type="file"
-                    multiple
-                    accept=".xlsx,.xls,.docx,.doc,.pdf"
-                    className="hidden"
-                    onChange={(e) => void handleSizeFilesSelected(e.target.files)}
-                  />
-                  <Icon
-                    icon={uploadLogosMutation.isPending ? "mdi:loading" : "mdi:file-upload-outline"}
-                    width={20}
-                    className={`text-primeColor ${uploadLogosMutation.isPending ? "animate-spin" : ""}`}
-                  />
-                  <p className="text-xs font-medium text-primeColor">
-                    Kéo thả hoặc nhấn để chọn file Excel bảng size hoặc Word mô tả kích thước
-                  </p>
-                </div>
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragActiveSize(true);
+                    }}
+                    onDragLeave={() => setDragActiveSize(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragActiveSize(false);
+                      void handleSizeFilesSelected(e.dataTransfer.files);
+                    }}
+                    onClick={() => sizeDocInputRef.current?.click()}
+                    className={`flex cursor-pointer items-center justify-center gap-2.5 rounded-md border-2 border-dashed px-4 py-3 text-center transition ${
+                      dragActiveSize
+                        ? "border-primeColor bg-gray-100"
+                        : "border-gray-300 bg-white hover:border-primeColor hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      ref={sizeDocInputRef}
+                      type="file"
+                      multiple
+                      accept=".xlsx,.xls,.docx,.doc,.pdf"
+                      className="hidden"
+                      onChange={(e) => void handleSizeFilesSelected(e.target.files)}
+                    />
+                    <Icon
+                      icon={uploadLogosMutation.isPending ? "mdi:loading" : "mdi:file-upload-outline"}
+                      width={20}
+                      className={`text-primeColor ${uploadLogosMutation.isPending ? "animate-spin" : ""}`}
+                    />
+                    <p className="text-xs font-medium text-primeColor">
+                      Kéo thả hoặc nhấn để chọn file Excel bảng size hoặc Word mô tả kích thước
+                    </p>
+                  </div>
 
-                {sizeError && <p className="mt-1.5 text-xs text-red-600">{sizeError}</p>}
+                  {sizeError && <p className="mt-1.5 text-xs text-red-600">{sizeError}</p>}
 
-                {sizeFiles.length > 0 && (
-                  <div className="mt-2.5 grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                    {sizeFiles.map(({ ref }) => {
-                      const badge = getFileBadge(ref.originalName);
-                      return (
-                        <div
-                          key={ref.fileName}
-                          className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 shadow-xs"
-                        >
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span
-                              className={`flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded border text-[9px] font-bold ${badge.bgClass}`}
-                            >
-                              <Icon icon={badge.icon} width={18} />
-                            </span>
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-primeColor">
-                                {ref.originalName}
-                              </p>
-                              <p className="text-[10px] text-slate-500">
-                                {formatFileSize(ref.sizeBytes)}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeSizeFile(ref.fileName)}
-                            aria-label="Xóa file"
-                            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
+                  {sizeFiles.length > 0 && (
+                    <div className="mt-2.5 grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                      {sizeFiles.map(({ ref }) => {
+                        const badge = getFileBadge(ref.originalName);
+                        return (
+                          <div
+                            key={ref.fileName}
+                            className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 shadow-xs"
                           >
-                            <Icon icon="mdi:trash-can-outline" width={16} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span
+                                className={`flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded border text-[9px] font-bold ${badge.bgClass}`}
+                              >
+                                <Icon icon={badge.icon} width={18} />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-semibold text-primeColor">
+                                  {ref.originalName}
+                                </p>
+                                <p className="text-[10px] text-slate-500">
+                                  {formatFileSize(ref.sizeBytes)}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeSizeFile(ref.fileName)}
+                              aria-label="Xóa file"
+                              className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
+                            >
+                              <Icon icon="mdi:trash-can-outline" width={16} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {submitError && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

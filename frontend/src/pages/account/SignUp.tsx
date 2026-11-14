@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuthActions } from "../../hooks/useAuthActions";
 import type { ApiError, UserDto } from "../../@types/auth.type";
 import { ROUTES } from "../../lib/routes";
+import { FEATURE_FLAGS } from "../../lib/featureFlags";
 
 const SLIDES = [
   {
@@ -65,9 +66,6 @@ const validatePassword = (value: string) => {
 
   return `Mật khẩu phải ${requirementText}.`;
 };
-
-// Feature flag: Tạm thời ẩn nút Google Auth cho Round 1 theo kịch bản khảo sát khách hàng (Đổi thành true ở Round 2)
-const ENABLE_GOOGLE_AUTH = false;
 
 const SignUp = () => {
   const [firstName, setFirstName] = useState("");
@@ -463,8 +461,8 @@ const SignUp = () => {
                 ) : "Create Account"}
               </button>
 
-              {/* Google Auth - Tạm thời ẩn cho Round 1 theo yêu cầu học thuật (Bật lại bằng cách đổi ENABLE_GOOGLE_AUTH = true ở Round 2) */}
-              {ENABLE_GOOGLE_AUTH && (
+              {/* F3: Google Auth - Tạm thời ẩn cho Round 1 (Kích hoạt lại trong featureFlags.ts ở Round 2) */}
+              {FEATURE_FLAGS.ENABLE_GOOGLE_AUTH && (
                 <>
                   <div className="flex items-center gap-4">
                     <div className="flex-1 h-px bg-[#F3F4F6]" />

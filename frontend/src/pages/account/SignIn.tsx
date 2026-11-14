@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { useAuthActions } from "../../hooks/useAuthActions";
 import { type ApiError, type UserDto } from "../../@types/auth.type";
 import { ROUTES } from "../../lib/routes";
+import { FEATURE_FLAGS } from "../../lib/featureFlags";
 
 const GOOGLE_ERRORS: Record<string, string> = {
   google_denied: "You denied Google sign-in",
@@ -28,9 +29,6 @@ const SLIDES = [
     sub: "Curated styles for every season",
   },
 ];
-
-// Feature flag: Tạm thời ẩn nút Google Auth cho Round 1 theo kịch bản khảo sát khách hàng (Đổi thành true ở Round 2)
-const ENABLE_GOOGLE_AUTH = false;
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
@@ -364,8 +362,8 @@ const SignIn = () => {
                   </div>
                 </div>
 
-                {/* Google Auth - Tạm thời ẩn cho Round 1 theo yêu cầu học thuật (Bật lại bằng cách đổi ENABLE_GOOGLE_AUTH = true ở Round 2) */}
-                {ENABLE_GOOGLE_AUTH && (
+                {/* F3: Google Auth - Tạm thời ẩn cho Round 1 (Kích hoạt lại trong featureFlags.ts ở Round 2) */}
+                {FEATURE_FLAGS.ENABLE_GOOGLE_AUTH && (
                   <>
                     <div className="flex items-center gap-4">
                       <div className="flex-1 h-px bg-[#F3F4F6]" />

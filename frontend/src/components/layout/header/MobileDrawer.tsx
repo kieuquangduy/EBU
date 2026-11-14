@@ -2,6 +2,7 @@ import type { ReactNode, RefObject } from "react";
 import { Link } from "react-router-dom";
 import type { UserDto } from "../../../@types/auth.type";
 import { ROUTES } from "../../../lib/routes";
+import { FEATURE_FLAGS } from "../../../lib/featureFlags";
 import { CloseIcon, HeartIcon, LogoutIcon, QuoteIcon, UserIcon } from "./HeaderIcons";
 import type { HeaderNavLink } from "./headerLinks";
 
@@ -123,9 +124,11 @@ export default function MobileDrawer({
               <HeartIcon className="h-5 w-5" />
             </MobileDrawerLink>
 
-            <MobileDrawerLink to={ROUTES.QUOTES} onClose={onClose} label="Yêu cầu báo giá">
-              <QuoteIcon className="h-5 w-5" />
-            </MobileDrawerLink>
+            {FEATURE_FLAGS.ENABLE_QUOTE_TRACKING && (
+              <MobileDrawerLink to={ROUTES.QUOTES} onClose={onClose} label="Yêu cầu báo giá">
+                <QuoteIcon className="h-5 w-5" />
+              </MobileDrawerLink>
+            )}
 
             {isAuthenticated && (
               <>
@@ -137,9 +140,11 @@ export default function MobileDrawer({
                 <MobileDrawerLink to={ROUTES.PROFILE} onClose={onClose} label="Hồ sơ của tôi">
                   <UserIcon className="h-5 w-5" />
                 </MobileDrawerLink>
-                <MobileDrawerLink to={ROUTES.QUOTES} onClose={onClose} label="Yêu cầu báo giá của tôi">
-                  <QuoteIcon className="h-5 w-5" />
-                </MobileDrawerLink>
+                {FEATURE_FLAGS.ENABLE_QUOTE_TRACKING && (
+                  <MobileDrawerLink to={ROUTES.QUOTES} onClose={onClose} label="Yêu cầu báo giá của tôi">
+                    <QuoteIcon className="h-5 w-5" />
+                  </MobileDrawerLink>
+                )}
                 <MobileDrawerLink to={ROUTES.REVIEWS} onClose={onClose} label="Đánh giá của tôi">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />

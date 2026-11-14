@@ -17,6 +17,7 @@ import {
   getUserStatusBadge,
 } from "../lib/quoteStatus";
 import { ROUTES, routeTo } from "../lib/routes";
+import { FEATURE_FLAGS } from "../lib/featureFlags";
 import { formatPrice } from "../utils/formatPrice";
 
 const PAGE_SIZE = 10;
@@ -161,7 +162,25 @@ export default function MyQuotesPage() {
           )}
         </div>
 
-        {!isAuthenticated ? (
+        {!FEATURE_FLAGS.ENABLE_QUOTE_TRACKING ? (
+          <div className="rounded-md border border-gray-200 bg-white p-8 text-center shadow-xs">
+            <Icon icon="lucide:clock" width={36} className="mx-auto text-amber-500" />
+            <h2 className="mt-3 text-base sm:text-lg font-bold text-primeColor">
+              Tính năng theo dõi tiến độ báo giá trực tuyến
+            </h2>
+            <p className="mx-auto mt-2 max-w-md text-xs sm:text-sm text-lightText leading-relaxed">
+              Hệ thống hiện tại tiếp nhận yêu cầu báo giá của bạn qua biểu mẫu và tư vấn viên xưởng sẽ chủ động liên hệ lại trực tiếp qua Số điện thoại / Email. Tính năng tra cứu tiến độ và cập nhật trạng thái đơn trực tuyến đang được bổ sung trong đợt nâng cấp tiếp theo (Round 2).
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <Link
+                to={ROUTES.SHOP}
+                className="rounded-md bg-primeColor px-5 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-black transition"
+              >
+                Khám phá mẫu áo khác
+              </Link>
+            </div>
+          </div>
+        ) : !isAuthenticated ? (
           <div className="rounded-md border border-gray-200 bg-white p-8 text-center shadow-xs">
             <Icon icon="lucide:lock" width={32} className="mx-auto text-slate-400" />
             <h2 className="mt-3 text-base sm:text-lg font-bold text-primeColor">

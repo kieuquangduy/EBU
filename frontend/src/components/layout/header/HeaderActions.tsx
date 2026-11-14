@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import NotificationBell from "../../notification/NotificationBell";
 import { ROUTES } from "../../../lib/routes";
+import { FEATURE_FLAGS } from "../../../lib/featureFlags";
 import { HeartIcon, QuoteIcon } from "./HeaderIcons";
 
 type HeaderActionsProps = {
@@ -16,14 +17,16 @@ export default function HeaderActions({ iconButtonClass }: HeaderActionsProps) {
         <HeartIcon />
       </Link>
 
-      <Link
-        to={ROUTES.QUOTES}
-        className={iconButtonClass}
-        aria-label="Yêu cầu báo giá"
-        title="Yêu cầu báo giá"
-      >
-        <QuoteIcon />
-      </Link>
+      {FEATURE_FLAGS.ENABLE_QUOTE_TRACKING && (
+        <Link
+          to={ROUTES.QUOTES}
+          className={iconButtonClass}
+          aria-label="Yêu cầu báo giá"
+          title="Yêu cầu báo giá"
+        >
+          <QuoteIcon />
+        </Link>
+      )}
     </>
   );
 }
