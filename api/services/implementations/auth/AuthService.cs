@@ -171,7 +171,8 @@ namespace api.services.implementations.auth
             if (string.IsNullOrWhiteSpace(loginDto.Password))
                 return AuthResult<AuthResponseDto>.Failure("Password is required", StatusCodes.Status400BadRequest);
 
-            var user = await _userRepository.GetByEmailAsync(loginDto.Email);
+            var normalizedEmail = loginDto.Email.Trim().ToLowerInvariant();
+            var user = await _userRepository.GetByEmailAsync(normalizedEmail);
             if (user == null)
                 return AuthResult<AuthResponseDto>.Failure("Invalid email or password", StatusCodes.Status401Unauthorized);
 

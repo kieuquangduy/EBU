@@ -234,13 +234,13 @@ namespace api.controllers
         private void SetAccessTokenCookie(string token)
         {
             var accessTokenExpiration = _config.GetValue<int>("Jwt:AccessTokenExpirationMinutes", 15);
-            bool isDev = _config.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
+            bool isHttps = Request.IsHttps || Request.Headers["X-Forwarded-Proto"] == "https";
 
             Response.Cookies.Append("accessToken", token, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = !isDev,
-                SameSite = SameSiteMode.Lax,
+                Secure = isHttps,
+                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax,
                 Expires = DateTimeOffset.UtcNow.AddMinutes(accessTokenExpiration),
                 Path = "/"
             });
@@ -249,13 +249,13 @@ namespace api.controllers
         private void SetRefreshTokenCookie(string token)
         {
             var refreshTokenLifetime = _tokenService.GetRefreshTokenLifetime();
-            bool isDev = _config.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
+            bool isHttps = Request.IsHttps || Request.Headers["X-Forwarded-Proto"] == "https";
 
             Response.Cookies.Append("refreshToken", token, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = !isDev,
-                SameSite = SameSiteMode.Lax,
+                Secure = isHttps,
+                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax,
                 Expires = DateTimeOffset.UtcNow.Add(refreshTokenLifetime),
                 Path = "/"
             });
@@ -277,20 +277,20 @@ namespace api.controllers
 
         private void DeleteTokenCookies()
         {
-            bool isDev = _config.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
+            bool isHttps = Request.IsHttps || Request.Headers["X-Forwarded-Proto"] == "https";
 
             Response.Cookies.Delete("accessToken", new CookieOptions
             {
                 Path = "/",
-                Secure = !isDev,
-                SameSite = SameSiteMode.Lax
+                Secure = isHttps,
+                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax
             });
 
             Response.Cookies.Delete("refreshToken", new CookieOptions
             {
                 Path = "/",
-                Secure = !isDev,
-                SameSite = SameSiteMode.Lax
+                Secure = isHttps,
+                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax
             });
         }
     }

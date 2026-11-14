@@ -13,13 +13,13 @@ namespace api.controllers
         public IActionResult GoogleLogin()
         {
             var state = Guid.NewGuid().ToString("N");
-            bool isDev = _config.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
+            bool isHttps = Request.IsHttps || Request.Headers["X-Forwarded-Proto"] == "https";
 
             Response.Cookies.Append("oauth_state", state, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = !isDev,
-                SameSite = SameSiteMode.Lax,
+                Secure = isHttps,
+                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax,
                 Expires = DateTimeOffset.UtcNow.AddMinutes(10),
                 Path = "/"
             });
@@ -42,8 +42,8 @@ namespace api.controllers
                 Response.Cookies.Append("oauth_redirect_uri", effectiveRedirectUri, new CookieOptions
                 {
                     HttpOnly = true,
-                    Secure = !isDev,
-                    SameSite = SameSiteMode.Lax,
+                    Secure = isHttps,
+                    SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax,
                     Expires = DateTimeOffset.UtcNow.AddMinutes(10),
                     Path = "/"
                 });
@@ -79,9 +79,20 @@ namespace api.controllers
             }
 
             var effectiveRedirectUri = Request.Cookies["oauth_redirect_uri"];
+            bool isHttps = Request.IsHttps || Request.Headers["X-Forwarded-Proto"] == "https";
 
-            Response.Cookies.Delete("oauth_state");
-            Response.Cookies.Delete("oauth_redirect_uri");
+            Response.Cookies.Delete("oauth_state", new CookieOptions
+            {
+                Path = "/",
+                Secure = isHttps,
+                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax
+            });
+            Response.Cookies.Delete("oauth_redirect_uri", new CookieOptions
+            {
+                Path = "/",
+                Secure = isHttps,
+                SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax
+            });
 
             try
             {

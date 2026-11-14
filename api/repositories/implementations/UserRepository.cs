@@ -13,9 +13,10 @@ public class UserRepository : Repository<User>, IUserRepository
 
     public async Task<User?> GetByEmailAsync(string email)
     {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
         return await _dbSet
             .Include(u => u.RefreshTokens)
-            .FirstOrDefaultAsync(u => u.Email == email);
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
     }
 
     public async Task<User?> GetByPhoneAsync(string phoneNumber)
