@@ -26,9 +26,10 @@ async function loadUserService() {
 }
 
 // ── Storage ──────────────────────────────────────────────────────────────────
-// Chỉ lưu UserDto (thông tin hiển thị UI) vào localStorage.
-// accessToken và refreshToken luôn nằm trong HttpOnly cookie — KHÔNG lưu ở đây.
+// Lưu UserDto (thông tin hiển thị UI) cùng token fallback cho mobile browsers chặn cross-site cookies
 const STORAGE_KEY = '_u';
+const ACCESS_TOKEN_KEY = '_at';
+const REFRESH_TOKEN_KEY = '_rt';
 const ACTIVITY_STORAGE_KEY = '_auth_last_activity';
 const ACTIVITY_WRITE_THROTTLE_MS = 15 * 1000;
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'focus'] as const;
@@ -47,6 +48,8 @@ const storage = {
     },
     clear: (): void => {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(ACCESS_TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
     },
 };
 
@@ -238,8 +241,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'LOADING' });
         try {
             const authService = await loadAuthService();
-            const user = await authService.login(dto);
-            // Xử lý cả trường hợp backend trả về PascalCase và camelCase
+            const res = await authService.login(dto);
+            
+            const user = ('user' in res && res.user) ? res.user : (res as unknown as UserDto);
+            const accessToken = 'accessToken' in res ? (res.accessToken as string) : undefined;
+            const refreshToken = 'refreshToken' in res ? (res.refreshToken as string) : undefined;
+
+            if (accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+            if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+
             removeAccountScopedQueries();
             storage.save(user);
             dispatch({ type: 'SET_USER', payload: user });
@@ -255,8 +265,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'LOADING' });
         try {
             const authService = await loadAuthService();
-            const user = await authService.register(dto);
-            // Xử lý cả trường hợp backend trả về PascalCase và camelCase
+            const res = await authService.register(dto);
+
+            const user = ('user' in res && res.user) ? res.user : (res as unknown as UserDto);
+            const accessToken = 'accessToken' in res ? (res.accessToken as string) : undefined;
+            const refreshToken = 'refreshToken' in res ? (res.refreshToken as string) : undefined;
+
+            if (accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+            if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+
             removeAccountScopedQueries();
             storage.save(user);
             dispatch({ type: 'SET_USER', payload: user });
@@ -275,7 +292,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const logout = useCallback(async (): Promise<void> => {
         try {
             const authService = await loadAuthService();
-            await authService.logout();
+            const rt = localStorage.getItem(REFRESH_TOKEN_KEY) || undefined;
+            await authService.logout(rt);
         } catch {
             // Dù API fail vẫn clear local state
         }

@@ -102,7 +102,10 @@ namespace api.controllers
                 SetAccessTokenCookie(result.AccessToken);
                 SetRefreshTokenCookie(result.RefreshToken);
 
-                return Redirect($"{frontendUrl}/signin?google=success");
+                var encToken = Uri.EscapeDataString(result.AccessToken);
+                var encRefresh = Uri.EscapeDataString(result.RefreshToken);
+
+                return Redirect($"{frontendUrl}/signin?google=success&token={encToken}&refresh={encRefresh}");
             }
             catch (ApiAuthenticationException ex)
             {

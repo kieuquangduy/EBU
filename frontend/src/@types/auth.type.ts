@@ -35,6 +35,12 @@ export interface ChangePasswordDto {
 }
 
 // ── Response DTOs ─────────────────────────────────────────────────
+export interface AuthResponseDto {
+  accessToken: string;
+  refreshToken: string;
+  user: UserDto;
+}
+
 export interface UserDto {
   id: string;
   email: string;

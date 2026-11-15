@@ -16,19 +16,19 @@ export const FEATURE_FLAGS = {
    * Round 1: false (Ẩn phần upload file size cả lớp)
    * Round 2: true (Hiện phần upload file size)
    */
-  ENABLE_SIZE_DOC_UPLOAD: false,
+  ENABLE_SIZE_DOC_UPLOAD: true,
 
   /**
    * F2: Theo dõi tiến độ báo giá sau gửi trực tuyến (Nút xem tiến độ trong modal & menu 'Yêu cầu báo giá của tôi')
    * Round 1: false (Khách chỉ nhận thông báo tư vấn viên sẽ liên hệ lại qua SĐT/Email, không có link xem tiến độ)
    * Round 2: true (Hiện nút xem chi tiết tiến độ báo giá & menu quản lý báo giá trực tuyến)
    */
-  ENABLE_QUOTE_TRACKING: false,
+  ENABLE_QUOTE_TRACKING: true,
 
   /**
    * F3: Đăng nhập / Đăng ký nhanh bằng Google OAuth
    * Round 1: false (Ẩn nút Đăng nhập bằng Google trên SignIn & SignUp)
    * Round 2: true (Hiện nút Google OAuth)
    */
-  ENABLE_GOOGLE_AUTH: false,
+  ENABLE_GOOGLE_AUTH: true,
 } as const;

@@ -44,7 +44,7 @@ namespace api.controllers
 
         [HttpPost("register")]
         [AllowAnonymous]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
@@ -60,12 +60,12 @@ namespace api.controllers
             SetAccessTokenCookie(result.Value!.AccessToken);
             SetRefreshTokenCookie(result.Value!.RefreshToken);
 
-            return StatusCode(StatusCodes.Status201Created, result.Value!.User);
+            return StatusCode(StatusCodes.Status201Created, result.Value);
         }
 
         [HttpPost("login")]
         [AllowAnonymous]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
@@ -80,23 +80,27 @@ namespace api.controllers
             SetAccessTokenCookie(result.Value!.AccessToken);
             SetRefreshTokenCookie(result.Value!.RefreshToken);
 
-            return Ok(result.Value!.User);
+            return Ok(result.Value);
         }
 
         [HttpPost("refresh-token")]
         [AllowAnonymous]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> RefreshToken()
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto? dto)
         {
             var refreshToken = Request.Cookies["refreshToken"];
+            if (string.IsNullOrEmpty(refreshToken) && !string.IsNullOrWhiteSpace(dto?.RefreshToken))
+            {
+                refreshToken = dto.RefreshToken;
+            }
 
             _logger.LogDebug("Refresh-token request received (hasToken={HasToken})",
                 !string.IsNullOrEmpty(refreshToken));
 
             if (string.IsNullOrEmpty(refreshToken))
             {
-                _logger.LogWarning("Refresh token not found in cookie");
+                _logger.LogWarning("Refresh token not found in cookie or request body");
                 return Unauthorized(new ProblemDetails { Status = 401, Title = "Refresh token not found" });
             }
 
@@ -107,7 +111,7 @@ namespace api.controllers
             SetAccessTokenCookie(result.Value!.AccessToken);
             SetRefreshTokenCookie(result.Value!.RefreshToken);
 
-            return NoContent();
+            return Ok(result.Value);
         }
 
         [HttpPost("forgot-password")]
@@ -139,13 +143,18 @@ namespace api.controllers
         [HttpPost("logout")]
         [Authorize]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
-        public async Task<IActionResult> Logout()
+        public async Task<IActionResult> Logout([FromBody] LogoutDto? dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized(new ProblemDetails { Status = 401, Title = "Unauthorized" });
 
             var refreshToken = Request.Cookies["refreshToken"];
+            if (string.IsNullOrEmpty(refreshToken) && !string.IsNullOrWhiteSpace(dto?.RefreshToken))
+            {
+                refreshToken = dto.RefreshToken;
+            }
+
             if (!string.IsNullOrEmpty(refreshToken))
                 await _authService.LogoutAsync(userId, refreshToken);
 
@@ -194,13 +203,18 @@ namespace api.controllers
         [HttpPost("revoke-token")]
         [Authorize]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
-        public async Task<IActionResult> RevokeToken()
+        public async Task<IActionResult> RevokeToken([FromBody] RevokeTokenDto? dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized(new ProblemDetails { Status = 401, Title = "Unauthorized" });
 
             var refreshToken = Request.Cookies["refreshToken"];
+            if (string.IsNullOrEmpty(refreshToken) && !string.IsNullOrWhiteSpace(dto?.RefreshToken))
+            {
+                refreshToken = dto.RefreshToken;
+            }
+
             if (string.IsNullOrEmpty(refreshToken))
                 return BadRequest(new ProblemDetails { Status = 400, Title = "Refresh token not found" });
 

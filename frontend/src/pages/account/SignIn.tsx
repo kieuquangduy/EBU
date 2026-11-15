@@ -93,6 +93,15 @@ const SignIn = () => {
       setServerErrMsg("");
 
       try {
+        const token = searchParams.get("token");
+        const refresh = searchParams.get("refresh");
+        if (token) {
+          localStorage.setItem("_at", token);
+        }
+        if (refresh) {
+          localStorage.setItem("_rt", refresh);
+        }
+
         const user = await refreshUser();
         if (cancelled) return;
 
@@ -112,7 +121,7 @@ const SignIn = () => {
     return () => {
       cancelled = true;
     };
-  }, [getPostLoginPath, googleStatus, navigate, refreshUser]);
+  }, [getPostLoginPath, googleStatus, navigate, refreshUser, searchParams]);
 
   useEffect(() => {
     const state = location.state as { passwordChanged?: boolean } | null;

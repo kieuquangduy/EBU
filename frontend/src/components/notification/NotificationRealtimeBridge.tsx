@@ -19,6 +19,7 @@ export default function NotificationRealtimeBridge() {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(NOTIFICATION_HUB_URL, {
         withCredentials: true,
+        accessTokenFactory: () => localStorage.getItem("_at") || "",
         transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
       })
       .withAutomaticReconnect()

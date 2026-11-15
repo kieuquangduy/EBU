@@ -6,21 +6,22 @@ import type {
     ForgotPasswordDto,
     ResetPasswordDto,
     ChangePasswordDto,
-    UserDto
+    UserDto,
+    AuthResponseDto
 } from "../@types/auth.type";
 
 export const authService = {
     register: (dto: RegisterDto) =>
-        http.post<UserDto>("/auth/register", dto),
+        http.post<AuthResponseDto>("/auth/register", dto),
 
     login: (dto: LoginDto) =>
-        http.post<UserDto>("/auth/login", dto),
+        http.post<AuthResponseDto>("/auth/login", dto),
 
-    logout: () => 
-        http.post("/auth/logout"),
+    logout: (refreshToken?: string) => 
+        http.post("/auth/logout", refreshToken ? { refreshToken } : undefined),
 
-    refreshToken: () => 
-        http.post("/auth/refresh-token"),
+    refreshToken: (refreshToken?: string) => 
+        http.post<AuthResponseDto>("/auth/refresh-token", refreshToken ? { refreshToken } : undefined),
 
     resetPassword: (dto: ResetPasswordDto) => 
         http.post("/auth/reset-password", dto),
@@ -31,8 +32,8 @@ export const authService = {
     changePassword: (dto: ChangePasswordDto) => 
         http.post("/auth/change-password", dto),
 
-    revokeToken: () => 
-        http.post("/auth/revoke-token"),
+    revokeToken: (refreshToken?: string) => 
+        http.post("/auth/revoke-token", refreshToken ? { refreshToken } : undefined),
 
     getCurrentUser: () =>
         http.get<UserDto>("/auth/me", { skipAuthRedirect: true }),

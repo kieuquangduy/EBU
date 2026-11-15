@@ -3,10 +3,14 @@ import type { InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '../lib/env';
 import { ROUTES } from '../lib/routes';
 
-const USER_STORAGE_KEY = '_u';
+export const USER_STORAGE_KEY = '_u';
+export const ACCESS_TOKEN_KEY = '_at';
+export const REFRESH_TOKEN_KEY = '_rt';
 
-function clearCachedUser() {
+export function clearCachedUser() {
     localStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     window.dispatchEvent(new Event('auth:clear'));
 }
 
@@ -34,6 +38,15 @@ api.interceptors.request.use(
     (config) => {
         if (config.data instanceof FormData) {
             delete config.headers?.['Content-Type'];
+        }
+        const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+        if (token && !config.headers?.Authorization) {
+            config.headers = config.headers ?? {};
+            if (typeof (config.headers as any).set === 'function') {
+                (config.headers as any).set('Authorization', `Bearer ${token}`);
+            } else {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
         }
         return config;
     },
@@ -111,16 +124,49 @@ api.interceptors.response.use(
             if (isRefreshing) {
                 return new Promise((resolve, reject) => {
                     failedQueue.push({ resolve, reject });
-                }).then(() => api(originalRequest));
+                }).then(() => {
+                    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+                    if (token && originalRequest.headers) {
+                        if (typeof (originalRequest.headers as any).set === 'function') {
+                            (originalRequest.headers as any).set('Authorization', `Bearer ${token}`);
+                        } else {
+                            originalRequest.headers.Authorization = `Bearer ${token}`;
+                        }
+                    }
+                    return api(originalRequest);
+                });
             }
 
             isRefreshing = true;
 
             try {
-                //  Gọi refresh
-                await api.post('/auth/refresh-token');
+                // Gọi refresh kèm refresh token từ localStorage nếu cookie bị mobile browser chặn
+                const currentRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+                const refreshRes = await api.post(
+                    '/auth/refresh-token',
+                    currentRefreshToken ? { refreshToken: currentRefreshToken } : undefined
+                );
+
+                if (refreshRes?.data) {
+                    const newAccessToken = refreshRes.data.accessToken;
+                    const newRefreshToken = refreshRes.data.refreshToken;
+                    const newUser = refreshRes.data.user;
+
+                    if (newAccessToken) localStorage.setItem(ACCESS_TOKEN_KEY, newAccessToken);
+                    if (newRefreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, newRefreshToken);
+                    if (newUser) localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+                }
 
                 processQueue(null);
+
+                const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+                if (token && originalRequest.headers) {
+                    if (typeof (originalRequest.headers as any).set === 'function') {
+                        (originalRequest.headers as any).set('Authorization', `Bearer ${token}`);
+                    } else {
+                        originalRequest.headers.Authorization = `Bearer ${token}`;
+                    }
+                }
 
                 // Retry request cũ (chỉ 1 lần)
                 return api(originalRequest);
@@ -128,7 +174,7 @@ api.interceptors.response.use(
                 processQueue(refreshError);
                 clearCachedUser();
 
-                //  KHÔNG loop nữa → redirect luôn
+                // KHÔNG loop nữa → redirect luôn
                 if (!originalRequest.skipAuthRedirect && window.location.pathname !== ROUTES.SIGN_IN) {
                     window.location.href = ROUTES.SIGN_IN;
                 }

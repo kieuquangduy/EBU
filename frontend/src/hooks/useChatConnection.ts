@@ -51,6 +51,7 @@ export function useChatConnection({
     return new signalR.HubConnectionBuilder()
       .withUrl(SIGNALR_HUB_URL, {
         withCredentials: true,
+        accessTokenFactory: () => localStorage.getItem("_at") || "",
         transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
       })
       .withAutomaticReconnect()

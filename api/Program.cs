@@ -220,12 +220,16 @@ builder.Services.AddAuthentication(options =>
                 !context.Request.Path.StartsWithSegments("/api/quote-requests", StringComparison.OrdinalIgnoreCase))
                 return Task.CompletedTask;
 
-            var token = context.Request.Cookies["accessToken"];
+            string? token = null;
+
+            if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                token = authHeader["Bearer ".Length..].Trim();
+            }
 
             if (string.IsNullOrEmpty(token))
             {
-                if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-                    token = authHeader["Bearer ".Length..].Trim();
+                token = context.Request.Cookies["accessToken"];
             }
 
             var path = context.HttpContext.Request.Path;
