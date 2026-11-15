@@ -22,9 +22,11 @@ namespace api.models.entities
         public Address? ShippingAddress { get; set; }
 
         public string ReceiverName { get; set; }
+        public string? CustomerEmail { get; set; }
         public string ReceiverPhone { get; set; }
         public string AddressLine { get; set; }
         public string? Note { get; set; }
+        public string? CustomFilesJson { get; set; }
 
         public DateTime Created { get; set; }
         public DateTime? Updated { get; set; }

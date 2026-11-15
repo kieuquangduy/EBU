@@ -49,6 +49,9 @@ namespace api.services.implementations.quote
             ProductName = q.Product != null ? q.Product.Name : null,
             ProductSlug = q.Product != null ? q.Product.Slug : null,
             ProductImageUrl = q.Product != null ? q.Product.ImageUrl : null,
+            ProductUnitPrice = q.Product != null
+                ? (q.Product.BasePrice > 0 ? q.Product.BasePrice : q.Product.Price)
+                : null,
             UserId = q.UserId,
             CustomerName = q.CustomerName,
             Phone = q.Phone,
@@ -59,6 +62,16 @@ namespace api.services.implementations.quote
             PrintTechnique = q.PrintTechnique,
             Status = q.Status,
             QuotedPrice = q.QuotedPrice,
+            OrderId = q.Orders
+                .Where(o => o.Status != OrderStatus.Cancelled)
+                .OrderByDescending(o => o.Created)
+                .Select(o => o.Id)
+                .FirstOrDefault(),
+            OrderCode = q.Orders
+                .Where(o => o.Status != OrderStatus.Cancelled)
+                .OrderByDescending(o => o.Created)
+                .Select(o => o.OrderCode)
+                .FirstOrDefault(),
             AssignedAdminId = q.AssignedAdminId,
             AssignedAdminName = q.AssignedAdmin != null
                 ? (q.AssignedAdmin.FirstName + " " + q.AssignedAdmin.LastName).Trim()
@@ -176,6 +189,9 @@ namespace api.services.implementations.quote
                     ProductName = q.Product != null ? q.Product.Name : null,
                     ProductSlug = q.Product != null ? q.Product.Slug : null,
                     ProductImageUrl = q.Product != null ? q.Product.ImageUrl : null,
+                    ProductUnitPrice = q.Product != null
+                        ? (q.Product.BasePrice > 0 ? q.Product.BasePrice : q.Product.Price)
+                        : (decimal?)null,
                     q.UserId,
                     q.CustomerName,
                     q.Phone,
@@ -191,6 +207,16 @@ namespace api.services.implementations.quote
                     q.ExpectedDeliveryDate,
                     q.Status,
                     q.QuotedPrice,
+                    OrderId = q.Orders
+                        .Where(o => o.Status != OrderStatus.Cancelled)
+                        .OrderByDescending(o => o.Created)
+                        .Select(o => o.Id)
+                        .FirstOrDefault(),
+                    OrderCode = q.Orders
+                        .Where(o => o.Status != OrderStatus.Cancelled)
+                        .OrderByDescending(o => o.Created)
+                        .Select(o => o.OrderCode)
+                        .FirstOrDefault(),
                     q.QuotedNote,
                     q.InternalNote,
                     q.AssignedAdminId,
@@ -206,6 +232,36 @@ namespace api.services.implementations.quote
 
             QuoteStatusTransitionHelper.EnsureCanAccess(row.UserId, currentUserId, isAdmin);
 
+            var order = await _context.Orders
+                .AsNoTracking()
+                .Where(o => o.QuoteRequestId == row.Id && o.Status != OrderStatus.Cancelled)
+                .OrderByDescending(o => o.Created)
+                .Select(o => new QuoteOrderProgressDto
+                {
+                    Id = o.Id,
+                    OrderCode = o.OrderCode,
+                    Status = o.Status.ToString(),
+                    PaymentStatus = o.Payments
+                        .OrderByDescending(p => p.Created)
+                        .Select(p => p.Status.ToString())
+                        .FirstOrDefault() ?? PaymentStatus.Pending.ToString(),
+                    Total = o.Total,
+                    Shipping = o.ShippingDetail == null ? null : new api.DTOs.order.ShippingDetailDto
+                    {
+                        Id = o.ShippingDetail.Id,
+                        Method = o.ShippingDetail.Method.ToString(),
+                        Fee = o.ShippingDetail.Fee,
+                        TrackingNumber = o.ShippingDetail.TrackingNumber,
+                        CarrierName = o.ShippingDetail.Carrier,
+                        CarrierCode = o.ShippingDetail.CarrierCode,
+                        CurrentLocation = o.ShippingDetail.CurrentLocation,
+                        TrackingUrl = o.ShippingDetail.TrackingUrl,
+                        EstimatedDelivery = o.ShippingDetail.EstimatedDelivery,
+                        DeliveredAt = o.ShippingDetail.DeliveredAt
+                    }
+                })
+                .FirstOrDefaultAsync(ct);
+
             return new QuoteRequestDto
             {
                 Id = row.Id,
@@ -214,6 +270,7 @@ namespace api.services.implementations.quote
                 ProductName = row.ProductName,
                 ProductSlug = row.ProductSlug,
                 ProductImageUrl = row.ProductImageUrl,
+                ProductUnitPrice = row.ProductUnitPrice,
                 UserId = row.UserId,
                 CustomerName = row.CustomerName,
                 Phone = row.Phone,
@@ -229,11 +286,14 @@ namespace api.services.implementations.quote
                 ExpectedDeliveryDate = row.ExpectedDeliveryDate,
                 Status = row.Status,
                 QuotedPrice = row.QuotedPrice,
+                OrderId = row.OrderId,
+                OrderCode = row.OrderCode,
                 QuotedNote = row.QuotedNote,
                 InternalNote = isAdmin ? row.InternalNote : null,
                 AssignedAdminId = row.AssignedAdminId,
                 AssignedAdminName = row.AssignedAdminName,
                 QuotedAt = row.QuotedAt,
+                Order = order,
                 CreatedAt = row.CreatedAt,
                 UpdatedAt = row.UpdatedAt
             };
@@ -244,7 +304,9 @@ namespace api.services.implementations.quote
             string currentUserId,
             CancellationToken ct = default)
         {
-            var entity = await _context.QuoteRequests.FirstOrDefaultAsync(q => q.Id == id, ct)
+            var entity = await _context.QuoteRequests
+                .Include(q => q.Product)
+                .FirstOrDefaultAsync(q => q.Id == id, ct)
                 ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu báo giá.");
 
             QuoteStatusTransitionHelper.EnsureCanAccess(entity.UserId, currentUserId, isAdmin: false);
@@ -298,7 +360,9 @@ namespace api.services.implementations.quote
             string adminUserId,
             CancellationToken ct = default)
         {
-            var entity = await _context.QuoteRequests.FirstOrDefaultAsync(q => q.Id == id, ct)
+            var entity = await _context.QuoteRequests
+                .Include(q => q.Product)
+                .FirstOrDefaultAsync(q => q.Id == id, ct)
                 ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu báo giá.");
 
             QuoteStatusTransitionHelper.EnsureTransitionAllowed(entity.Status, QuoteStatus.Quoted);
@@ -333,6 +397,143 @@ namespace api.services.implementations.quote
             await TrySendQuotePricedEmailAsync(entity, ct);
 
             return await GetByIdAsync(id, adminUserId, isAdmin: true, ct);
+        }
+
+        public async Task<QuoteRequestDto> AcceptByUserAsync(
+            string id,
+            string currentUserId,
+            CancellationToken ct = default)
+        {
+            var entity = await _context.QuoteRequests
+                .Include(q => q.Product)
+                .FirstOrDefaultAsync(q => q.Id == id, ct)
+                ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu báo giá.");
+
+            QuoteStatusTransitionHelper.EnsureCanAccess(entity.UserId, currentUserId, isAdmin: false);
+            QuoteStatusTransitionHelper.EnsureTransitionAllowed(entity.Status, QuoteStatus.Accepted, isCustomerAction: true);
+
+            var order = await _context.Orders
+                .Include(o => o.StatusHistories)
+                .FirstOrDefaultAsync(o => o.QuoteRequestId == id && o.Status != OrderStatus.Cancelled, ct);
+
+            order ??= await CreateDraftOrderAsync(entity, currentUserId, ct);
+
+            var acceptedAt = DateTime.UtcNow;
+            entity.Status = QuoteStatus.Accepted;
+            entity.UpdatedAt = acceptedAt;
+            if (order.Status == OrderStatus.Pending)
+            {
+                order.Status = OrderStatus.SellerConfirmed;
+                order.Updated = acceptedAt;
+                order.StatusHistories.Add(new OrderStatusHistory
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    OrderId = order.Id,
+                    Status = OrderStatus.SellerConfirmed,
+                    Title = "Báo giá thành công",
+                    Description = $"Khách hàng xác nhận báo giá {entity.QuoteCode}.",
+                    ActorUserId = currentUserId,
+                    ActorRole = Role.Member.ToString(),
+                    Created = acceptedAt
+                });
+            }
+            await _context.SaveChangesAsync(ct);
+            return await GetByIdAsync(id, currentUserId, isAdmin: false, ct);
+        }
+
+        private async Task<Order> CreateDraftOrderAsync(QuoteRequest quote, string actorUserId, CancellationToken ct)
+        {
+            var now = DateTime.UtcNow;
+            var subtotal = quote.QuotedPrice ?? throw new InvalidOperationException("Báo giá chưa có giá trị.");
+            var address = string.IsNullOrWhiteSpace(quote.UserId)
+                ? null
+                : await _context.Addresses.AsNoTracking()
+                    .Where(a => a.UserId == quote.UserId)
+                    .OrderByDescending(a => a.IsDefault)
+                    .ThenByDescending(a => a.Updated ?? a.Created)
+                    .FirstOrDefaultAsync(ct);
+            var customerEmail = quote.Email;
+            if (string.IsNullOrWhiteSpace(customerEmail) && !string.IsNullOrWhiteSpace(quote.UserId))
+            {
+                customerEmail = await _context.Users.AsNoTracking()
+                    .Where(u => u.Id == quote.UserId)
+                    .Select(u => u.Email)
+                    .FirstOrDefaultAsync(ct);
+            }
+
+            var orderId = Guid.NewGuid().ToString();
+            var addressLine = address == null
+                ? string.Empty
+                : string.Join(", ", new[] { address.AddressLine, address.City, address.State, address.Country, address.ZipCode }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)));
+            var quantity = Math.Max(quote.Quantity, 1);
+            var item = new OrderItem
+            {
+                Id = Guid.NewGuid().ToString(),
+                OrderId = orderId,
+                ProductId = quote.ProductId,
+                ProductName = quote.Product?.Name ?? $"Áo custom ({quote.QuoteCode})",
+                VariantColor = quote.ColorSelection,
+                Material = quote.Material,
+                Quantity = quantity,
+                Price = Math.Round(subtotal / quantity, 2),
+                Total = subtotal,
+                Created = now
+            };
+
+            var order = new Order
+            {
+                Id = orderId,
+                OrderCode = $"ORD-{now:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..4].ToUpperInvariant()}",
+                UserId = quote.UserId,
+                Source = OrderSource.Rfq,
+                QuoteRequestId = quote.Id,
+                Subtotal = subtotal,
+                Total = subtotal,
+                Status = OrderStatus.Pending,
+                ShippingAddressId = address?.Id,
+                ReceiverName = quote.CustomerName,
+                CustomerEmail = customerEmail,
+                ReceiverPhone = quote.Phone,
+                AddressLine = addressLine,
+                Note = quote.Note,
+                Created = now,
+                Updated = now,
+                OrderItems = [item],
+                Payments =
+                [
+                    new Payment
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        OrderId = orderId,
+                        Method = PaymentMethod.COD,
+                        Provider = "Manual",
+                        Amount = subtotal,
+                        Status = PaymentStatus.Pending,
+                        TransactionNo = $"PAY-{Guid.NewGuid():N}",
+                        OrderInfo = $"Tự tạo từ báo giá {quote.QuoteCode}",
+                        Created = now,
+                        Updated = now
+                    }
+                ],
+                StatusHistories =
+                [
+                    new OrderStatusHistory
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        OrderId = orderId,
+                        Status = OrderStatus.Pending,
+                        Title = "Báo giá thành công",
+                        Description = $"Đơn được tạo khi khách hàng xác nhận báo giá {quote.QuoteCode}.",
+                        ActorUserId = actorUserId,
+                        ActorRole = Role.Member.ToString(),
+                        Created = now
+                    }
+                ]
+            };
+
+            _context.Orders.Add(order);
+            return order;
         }
 
         public async Task<QuoteRequestDto> AssignAdminAsync(
@@ -409,9 +610,9 @@ namespace api.services.implementations.quote
                 var group = query.StatusGroup.Trim().ToLowerInvariant();
                 source = group switch
                 {
-                    "pending" => source.Where(q => q.Status == QuoteStatus.Pending || q.Status == QuoteStatus.Contacted || q.Status == QuoteStatus.Quoted),
-                    "accepted" => source.Where(q => q.Status == QuoteStatus.Accepted || q.Status == QuoteStatus.InProduction),
-                    "completed" => source.Where(q => q.Status == QuoteStatus.Completed),
+                    "pending" => source.Where(q => q.Status == QuoteStatus.Pending || q.Status == QuoteStatus.Contacted),
+                    "quoted" => source.Where(q => q.Status == QuoteStatus.Quoted),
+                    "accepted" => source.Where(q => q.Status == QuoteStatus.Accepted || q.Status == QuoteStatus.InProduction || q.Status == QuoteStatus.Completed),
                     "cancelled" => source.Where(q => q.Status == QuoteStatus.Cancelled || q.Status == QuoteStatus.Rejected),
                     _ => source
                 };

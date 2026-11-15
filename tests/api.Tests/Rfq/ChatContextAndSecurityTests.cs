@@ -2,6 +2,7 @@ using System.Security.Claims;
 using api.controllers.chat;
 using api.DTOs.chat;
 using api.services.implementations.chat;
+using api.services.implementations.quote;
 using api.services.interfaces.chat;
 using api.validators.chat;
 using Microsoft.AspNetCore.Http;
@@ -80,10 +81,33 @@ namespace api.Tests.Rfq
         }
 
         [Fact]
+        public void SendChatMessageValidator_AcceptsAttachmentWithoutText()
+        {
+            var validator = new SendChatMessageDtoValidator();
+            var validation = validator.Validate(new SendChatMessageDto
+            {
+                ChatRoomId = "room-1",
+                Message = "",
+                Attachments = new List<ChatAttachmentDto>
+                {
+                    new()
+                    {
+                        Url = "/api/chat/rooms/room-1/attachments/file.png",
+                        Name = "file.png",
+                        ContentType = "image/png",
+                        SizeBytes = 1024
+                    }
+                }
+            });
+
+            Assert.True(validation.IsValid);
+        }
+
+        [Fact]
         public async Task StartSupportChat_ForwardsProductAndQuoteContext()
         {
             var fakeService = new FakeChatService();
-            var controller = new ChatController(fakeService, new StartSupportChatDtoValidator());
+            var controller = new ChatController(fakeService, new StartSupportChatDtoValidator(), CreateFileService());
             controller.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext
@@ -111,7 +135,7 @@ namespace api.Tests.Rfq
         public async Task GetSupportAvailability_ReturnsOnlineAndUnreadStatus()
         {
             var fakeService = new FakeChatService();
-            var controller = new ChatController(fakeService, new StartSupportChatDtoValidator());
+            var controller = new ChatController(fakeService, new StartSupportChatDtoValidator(), CreateFileService());
             controller.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext
@@ -164,6 +188,9 @@ namespace api.Tests.Rfq
             public Task MarkAsReadAsync(string roomId, string readerId, bool isAdmin, CancellationToken ct = default) => throw new NotImplementedException();
             public Task EnsureCanAccessRoomAsync(string roomId, string userId, bool isAdmin, CancellationToken ct = default) => throw new NotImplementedException();
         }
+
+        private static LocalLogoUploadService CreateFileService() =>
+            new(Path.Combine(Path.GetTempPath(), "haushop-chat-controller-tests"));
     }
 }
 

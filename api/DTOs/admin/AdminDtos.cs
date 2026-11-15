@@ -108,6 +108,18 @@ namespace api.DTOs.admin
         public List<AdminOrderItemDto> Items { get; set; } = new();
         public ShippingDetailDto? Shipping { get; set; }
         public List<OrderStatusHistoryDto> StatusHistory { get; set; } = new();
+        public AdminRfqOrderDetailsDto? RfqDetails { get; set; }
+        public List<api.DTOs.quote.LogoFileRefDto> CustomFiles { get; set; } = new();
+    }
+
+    public class AdminRfqOrderDetailsDto
+    {
+        public string QuoteCode { get; set; } = string.Empty;
+        public Dictionary<string, int> SizeBreakdown { get; set; } = new();
+        public string? Material { get; set; }
+        public string? ColorSelection { get; set; }
+        public string PrintTechnique { get; set; } = string.Empty;
+        public List<api.DTOs.quote.LogoFileRefDto> LogoFiles { get; set; } = new();
     }
 
     public class AdminOrderItemDto
@@ -118,6 +130,7 @@ namespace api.DTOs.admin
         public string? VariantSku { get; set; }
         public string? VariantSize { get; set; }
         public string? VariantColor { get; set; }
+        public string? Material { get; set; }
         public int Quantity { get; set; }
         public decimal Price { get; set; }
         public decimal Total { get; set; }
@@ -138,6 +151,7 @@ namespace api.DTOs.admin
     public class AdminCreateManualOrderDto
     {
         public string ReceiverName { get; set; } = string.Empty;
+        public string CustomerEmail { get; set; } = string.Empty;
         public string ReceiverPhone { get; set; } = string.Empty;
         public string AddressLine { get; set; } = string.Empty;
         public string? UserId { get; set; }
@@ -149,12 +163,24 @@ namespace api.DTOs.admin
         public List<AdminCreateOrderItemDto> Items { get; set; } = new();
     }
 
+    public class AdminUpdateOrderDetailsDto
+    {
+        public string ReceiverName { get; set; } = string.Empty;
+        public string? CustomerEmail { get; set; }
+        public string ReceiverPhone { get; set; } = string.Empty;
+        public string AddressLine { get; set; } = string.Empty;
+        public string? Note { get; set; }
+        public decimal ShippingFee { get; set; }
+        public List<AdminCreateOrderItemDto> Items { get; set; } = new();
+    }
+
     public class AdminCreateOrderItemDto
     {
         public string? ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string? VariantSize { get; set; }
         public string? VariantColor { get; set; }
+        public string? Material { get; set; }
         public int Quantity { get; set; }
         public decimal UnitPrice { get; set; }
     }

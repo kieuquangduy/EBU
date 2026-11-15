@@ -16,17 +16,18 @@ namespace api.services.implementations.quote
 
             if (isCustomerAction)
             {
-                return next == QuoteStatus.Cancelled &&
-                       current is QuoteStatus.Pending or QuoteStatus.Contacted or QuoteStatus.Quoted;
+                return (next == QuoteStatus.Accepted && current == QuoteStatus.Quoted) ||
+                       (next == QuoteStatus.Cancelled &&
+                        current is QuoteStatus.Pending or QuoteStatus.Contacted or QuoteStatus.Quoted);
             }
 
             return current switch
             {
-                QuoteStatus.Pending => next is QuoteStatus.Contacted or QuoteStatus.Quoted or QuoteStatus.Rejected or QuoteStatus.Cancelled,
+                QuoteStatus.Pending => next is QuoteStatus.Quoted or QuoteStatus.Rejected or QuoteStatus.Cancelled,
                 QuoteStatus.Contacted => next is QuoteStatus.Quoted or QuoteStatus.Rejected or QuoteStatus.Cancelled,
-                QuoteStatus.Quoted => next is QuoteStatus.Accepted or QuoteStatus.Rejected or QuoteStatus.Cancelled,
-                QuoteStatus.Accepted => next is QuoteStatus.InProduction or QuoteStatus.Cancelled,
-                QuoteStatus.InProduction => next is QuoteStatus.Completed or QuoteStatus.Cancelled,
+                QuoteStatus.Quoted => next is QuoteStatus.Rejected or QuoteStatus.Cancelled,
+                QuoteStatus.Accepted => false,
+                QuoteStatus.InProduction => false,
                 QuoteStatus.Completed => false,
                 QuoteStatus.Rejected => false,
                 QuoteStatus.Cancelled => false,

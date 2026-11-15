@@ -14,8 +14,11 @@ public sealed class SendChatMessageDtoValidator : AbstractValidator<SendChatMess
             .MaximumLength(50);
 
         RuleFor(x => x.Message)
-            .NotEmpty()
             .MaximumLength(5000);
+
+        RuleFor(x => x)
+            .Must(x => !string.IsNullOrWhiteSpace(x.Message) || x.Attachments?.Count > 0)
+            .WithMessage("Tin nhắn phải có nội dung hoặc tệp đính kèm.");
 
         RuleFor(x => x.MessageType)
             .Must(value => Enum.TryParse<ChatMessageType>(value, true, out _))

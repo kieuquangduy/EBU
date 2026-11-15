@@ -1,9 +1,11 @@
 import type {
+  ChatAttachmentDto,
   ChatMessageDto,
   ChatRoomDto,
   StartSupportChatDto,
   SupportAvailabilityDto,
 } from "../@types/chat.type";
+import api from "../api/apiClient";
 import { http } from "../lib/http";
 
 export const chatService = {
@@ -33,5 +35,19 @@ export const chatService = {
 
   async markAsRead(roomId: string): Promise<void> {
     await http.post(`/chat/rooms/${roomId}/read`);
+  },
+
+  async uploadAttachments(roomId: string, files: File[]): Promise<ChatAttachmentDto[]> {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file, file.name));
+    return http.post<ChatAttachmentDto[]>(
+      `/chat/rooms/${encodeURIComponent(roomId)}/attachments`,
+      formData
+    );
+  },
+
+  async getAttachmentBlob(url: string): Promise<Blob> {
+    const response = await api.get<Blob>(url, { responseType: "blob" });
+    return response.data;
   },
 };

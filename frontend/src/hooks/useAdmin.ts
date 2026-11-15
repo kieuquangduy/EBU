@@ -5,6 +5,7 @@ import type {
   AdminCreateOrderFromQuoteDto,
   AdminUpdateOrderPaymentDto,
   AdminUpdateOrderStatusDto,
+  AdminUpdateOrderDetailsDto,
   AdminUpdateUserDto,
   AdminUpdateUserRoleDto,
   UpdateAdminSettingsDto,
@@ -177,6 +178,41 @@ export function useUpdateAdminOrderStatus() {
       queryClient.setQueryData(queryKeys.admin.order(updatedOrder.id), updatedOrder);
       queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
+export function useUpdateAdminOrderDetails() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, dto }: { orderId: string; dto: AdminUpdateOrderDetailsDto }) =>
+      adminService.updateOrderDetails(orderId, dto),
+    onSuccess: (updatedOrder) => {
+      queryClient.setQueryData(queryKeys.admin.order(updatedOrder.id), updatedOrder);
+      queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] });
+    },
+  });
+}
+
+export function useUploadAdminOrderFiles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, files }: { orderId: string; files: File[] }) =>
+      adminService.uploadOrderFiles(orderId, files),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.order(variables.orderId) });
+    },
+  });
+}
+
+export function useDeleteAdminOrderFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, fileName }: { orderId: string; fileName: string }) =>
+      adminService.deleteOrderFile(orderId, fileName),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.order(variables.orderId) });
     },
   });
 }

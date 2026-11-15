@@ -58,8 +58,8 @@ export default function ProductDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-container mx-auto px-10 py-16">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+      <div className="max-w-container mx-auto px-4 sm:px-6 lg:px-10 py-8 lg:py-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
           <div className="aspect-square bg-gray-100 animate-skeleton rounded-sm" />
           <div className="space-y-5">
             <div className="h-8 bg-gray-100 rounded w-2/3 animate-skeleton" />
@@ -124,7 +124,7 @@ export default function ProductDetailPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="bg-[#f7f5f2] border-b border-gray-100 py-4 px-10">
+      <div className="bg-[#f7f5f2] border-b border-gray-100 py-3 sm:py-4 px-4 sm:px-6 lg:px-10">
         <nav className="max-w-container mx-auto flex items-center gap-2 text-sm text-lightText font-bodyFont">
           <Link to="/" className="hover:text-red-500 transition-colors">
             Home
@@ -140,8 +140,8 @@ export default function ProductDetailPage() {
         </nav>
       </div>
 
-      <div className="max-w-container mx-auto px-10 py-14">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+      <div className="max-w-container mx-auto px-4 sm:px-6 lg:px-10 py-8 lg:py-14">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
           <div className="aspect-square bg-[#f7f5f2] flex items-center justify-center overflow-hidden">
             {product.imageUrl ? (
               <img
@@ -430,13 +430,10 @@ function ReviewSection({
     } catch (error: unknown) {
       logger.error("Create review failed", error);
       const message =
-        typeof error === "object" &&
-        error !== null &&
-        "response" in error &&
-        typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
-          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        error instanceof Error && error.message
+          ? error.message
           : "Không thể gửi đánh giá";
-      showToast(message ?? "Không thể gửi đánh giá", "error");
+      showToast(message, "error");
     }
   };
 

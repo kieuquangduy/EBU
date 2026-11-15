@@ -1,9 +1,11 @@
 import { Icon } from "@iconify/react";
-import { useCallback, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import type { Role } from "../../@types/auth.type";
 
 export function useResizableColumns(initialWidths: number[], minWidth = 56) {
   const [widths, setWidths] = useState<number[]>(initialWidths);
+
+  const totalWidth = useMemo(() => widths.reduce((sum, w) => sum + w, 0), [widths]);
 
   const startResize = useCallback(
     (index: number) => (event: ReactMouseEvent) => {
@@ -37,7 +39,7 @@ export function useResizableColumns(initialWidths: number[], minWidth = 56) {
     [minWidth, widths]
   );
 
-  return { widths, startResize };
+  return { widths, totalWidth, startResize };
 }
 
 export function ResizableTh({
@@ -110,6 +112,7 @@ export const orderStatusBadgeClass: Record<string, string> = {
   PaymentSucceeded: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
   OrderPlaced: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
   SellerConfirmed: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
+  InProduction: "bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200",
   Packing: "bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200",
   HandoverToCarrier: "bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-200",
   InTransit: "bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-200",
@@ -179,6 +182,7 @@ export function normalizeOrderStatusKey(status: string) {
     paymentsucceeded: "PaymentSucceeded",
     orderplaced: "OrderPlaced",
     sellerconfirmed: "SellerConfirmed",
+    inproduction: "InProduction",
     packing: "Packing",
     handovertocarrier: "HandoverToCarrier",
     intransit: "InTransit",
@@ -207,6 +211,7 @@ export function formatOrderStatusLabel(status: string) {
     PaymentSucceeded: "Thanh toán thành công",
     OrderPlaced: "Đã đặt hàng",
     SellerConfirmed: "Người bán xác nhận",
+    InProduction: "Đang sản xuất",
     Packing: "Đang đóng gói",
     HandoverToCarrier: "Đã giao đơn vị vận chuyển",
     InTransit: "Đang vận chuyển",

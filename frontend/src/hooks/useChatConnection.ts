@@ -6,6 +6,7 @@ import type {
   MessagesReadEventDto,
   SendChatMessageDto,
 } from "../@types/chat.type";
+import { sanitizeErrorMessage } from "../api/apiClient";
 import { SIGNALR_HUB_URL } from "../lib/env";
 
 export function useChatConnection({
@@ -115,26 +116,43 @@ export function useChatConnection({
 
   const sendMessage = useCallback(async (dto: SendChatMessageDto) => {
     if (!connectionRef.current || connectionRef.current.state !== signalR.HubConnectionState.Connected) {
-      throw new Error("Chat connection is not ready.");
+      throw new Error("Kết nối trò chuyện chưa sẵn sàng.");
     }
-    await connectionRef.current.invoke("SendMessage", {
-      chatRoomId: dto.chatRoomId,
-      message: dto.message,
-      messageType: dto.messageType ?? "Text",
-      attachmentUrls: dto.attachmentUrls ?? [],
-      productId: dto.productId ?? null,
-    });
+    try {
+      await connectionRef.current.invoke("SendMessage", {
+        chatRoomId: dto.chatRoomId,
+        message: dto.message,
+        messageType: dto.messageType ?? "Text",
+        attachments: dto.attachments ?? [],
+      });
+    } catch (err) {
+      throw new Error(
+        sanitizeErrorMessage(
+          err instanceof Error ? err.message : err,
+          "Không thể gửi tin nhắn. Vui lòng thử lại sau."
+        )
+      );
+    }
   }, []);
 
   const sendAiMessage = useCallback(async (dto: SendChatMessageDto) => {
     if (!connectionRef.current || connectionRef.current.state !== signalR.HubConnectionState.Connected) {
-      throw new Error("Chat connection is not ready.");
+      throw new Error("Kết nối trò chuyện chưa sẵn sàng.");
     }
-    await connectionRef.current.invoke("SendAiMessage", {
-      chatRoomId: dto.chatRoomId,
-      message: dto.message,
-      messageType: dto.messageType ?? "Text",
-    });
+    try {
+      await connectionRef.current.invoke("SendAiMessage", {
+        chatRoomId: dto.chatRoomId,
+        message: dto.message,
+        messageType: dto.messageType ?? "Text",
+      });
+    } catch (err) {
+      throw new Error(
+        sanitizeErrorMessage(
+          err instanceof Error ? err.message : err,
+          "Không thể gửi tin nhắn cho AI. Vui lòng thử lại sau."
+        )
+      );
+    }
   }, []);
 
   const markAsRead = useCallback(async (roomId: string) => {

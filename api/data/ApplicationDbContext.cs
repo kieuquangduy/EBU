@@ -220,9 +220,11 @@ namespace api.data
                 entity.Property(e => e.Subtotal).HasPrecision(18, 2).IsRequired();
                 entity.Property(e => e.ShippingFee).HasPrecision(18, 2).HasDefaultValue(0m);
                 entity.Property(e => e.ReceiverName).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.CustomerEmail).HasMaxLength(200);
                 entity.Property(e => e.ReceiverPhone).IsRequired().HasMaxLength(20);
                 entity.Property(e => e.AddressLine).IsRequired().HasMaxLength(500);
                 entity.Property(e => e.Note).HasMaxLength(1000);
+                entity.Property(e => e.CustomFilesJson).HasColumnType("longtext");
 
                 entity.HasOne(e => e.User)
                     .WithMany(u => u.Orders)
@@ -230,7 +232,7 @@ namespace api.data
                     .OnDelete(DeleteBehavior.SetNull);
 
                 entity.HasOne(e => e.QuoteRequest)
-                    .WithMany()
+                    .WithMany(q => q.Orders)
                     .HasForeignKey(e => e.QuoteRequestId)
                     .OnDelete(DeleteBehavior.SetNull);
 
@@ -327,6 +329,7 @@ namespace api.data
                 entity.Property(e => e.VariantSku).HasMaxLength(100);
                 entity.Property(e => e.VariantSize).HasMaxLength(20);
                 entity.Property(e => e.VariantColor).HasMaxLength(50);
+                entity.Property(e => e.Material).HasMaxLength(100);
                 entity.Property(e => e.Quantity).IsRequired();
                 entity.Property(e => e.Price).HasPrecision(18, 2).IsRequired();
                 entity.Property(e => e.Total).HasPrecision(18, 2).IsRequired();
@@ -610,6 +613,7 @@ namespace api.data
                 entity.Property(e => e.Avatar).HasMaxLength(500);
                 entity.Property(e => e.Role).IsRequired().HasDefaultValue(Role.Member).HasConversion<int>().HasSentinel(Role.Member);
                 entity.Property(e => e.IsOnline).HasDefaultValue(false);
+                entity.Property<bool>("IsEmailVerified").HasDefaultValue(true);
                 entity.Property(e => e.Created).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 entity.Property(e => e.AvatarPublicId).HasMaxLength(200);
                 entity.Property(e => e.LastSeen).HasColumnType("datetime");

@@ -308,7 +308,7 @@ function App() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute allowedRoles={["Admin"]}>
+            <ProtectedRoute allowedRoles={["Admin", "Merchant"]}>
               <Suspense fallback={<AdminPageFallback />}>
                 <AdminLayout />
               </Suspense>

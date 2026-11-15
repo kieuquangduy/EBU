@@ -6,7 +6,8 @@ namespace api.models.enums
         Rfq = 1,
         ManualZalo = 2,
         ManualHotline = 3,
-        Other = 4
+        Other = 4,
+        ManualMessenger = 5
     }
 }
 

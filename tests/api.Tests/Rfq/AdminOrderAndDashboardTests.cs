@@ -4,6 +4,7 @@ using api.DTOs.admin;
 using api.DTOs.product;
 using api.models.enums;
 using api.services.interfaces.admin;
+using api.services.implementations.admin;
 using api.validators.admin;
 using api.validators.product;
 using Microsoft.AspNetCore.Authorization;
@@ -14,6 +15,63 @@ namespace api.Tests.Rfq
 {
     public class AdminOrderAndDashboardTests
     {
+        [Fact]
+        public void InProductionOrderStatus_PreservesExistingDatabaseValues()
+        {
+            Assert.Equal(19, (int)OrderStatus.InProduction);
+        }
+
+        [Theory]
+        [InlineData(QuoteStatus.Quoted, true)]
+        [InlineData(QuoteStatus.Accepted, true)]
+        [InlineData(QuoteStatus.Pending, false)]
+        [InlineData(QuoteStatus.Rejected, false)]
+        public void CreateOrderFromQuote_AllowsSentOrAcceptedQuotes(QuoteStatus status, bool expected)
+        {
+            Assert.Equal(expected, AdminManagementService.CanCreateOrderFromQuote(status));
+        }
+
+        [Theory]
+        [InlineData(OrderStatus.Pending, OrderStatus.Processing, true)]
+        [InlineData(OrderStatus.Processing, OrderStatus.Shipping, true)]
+        [InlineData(OrderStatus.SellerConfirmed, OrderStatus.InProduction, true)]
+        [InlineData(OrderStatus.InProduction, OrderStatus.Packing, true)]
+        [InlineData(OrderStatus.Packing, OrderStatus.HandoverToCarrier, true)]
+        [InlineData(OrderStatus.HandoverToCarrier, OrderStatus.InTransit, true)]
+        [InlineData(OrderStatus.SellerConfirmed, OrderStatus.InTransit, false)]
+        [InlineData(OrderStatus.Completed, OrderStatus.Shipping, false)]
+        public void OrderStatusTransition_MatchesFulfillmentFlow(
+            OrderStatus current,
+            OrderStatus next,
+            bool expected)
+        {
+            Assert.Equal(expected, AdminManagementService.IsValidStatusTransition(current, next));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void StatusHistoryDescription_NeverReturnsNullForEmptyNote(string? note)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(
+                AdminManagementService.BuildStatusHistoryDescription(OrderStatus.Processing, note)));
+        }
+
+        [Theory]
+        [InlineData("pending", OrderStatus.Pending, OrderStatus.OrderPlaced, OrderStatus.Processing, OrderStatus.SellerConfirmed)]
+        [InlineData("production", OrderStatus.InProduction, OrderStatus.Packing)]
+        [InlineData("shipping", OrderStatus.Shipping, OrderStatus.HandoverToCarrier, OrderStatus.InTransit, OrderStatus.OutForDelivery, OrderStatus.DeliveryFailed)]
+        [InlineData("completed", OrderStatus.Delivered, OrderStatus.Completed, OrderStatus.PaymentSucceeded)]
+        [InlineData("cancelled", OrderStatus.Cancelled)]
+        [InlineData("returns", OrderStatus.ReturnRequested, OrderStatus.ReturnApproved, OrderStatus.ReturnRejected, OrderStatus.Returned, OrderStatus.Refunded)]
+        public void OrderStatusFilter_ResolvesCompactBusinessGroups(
+            string filter,
+            params OrderStatus[] expected)
+        {
+            Assert.Equal(expected, AdminManagementService.ResolveOrderStatuses(filter));
+        }
+
         [Fact]
         public void AdminController_RequiresAdminOnlyPolicy()
         {
@@ -33,6 +91,7 @@ namespace api.Tests.Rfq
             var dto = new AdminCreateManualOrderDto
             {
                 ReceiverName = "CLB Bóng Rổ ĐH Bách Khoa",
+                CustomerEmail = "clb@hust.edu.vn",
                 ReceiverPhone = "0912345678",
                 AddressLine = "Số 1 Đại Cồ Việt, Hà Nội",
                 UserId = null,
@@ -65,6 +124,7 @@ namespace api.Tests.Rfq
             var dto = new AdminCreateManualOrderDto
             {
                 ReceiverName = "Khách A",
+                CustomerEmail = "khach@example.com",
                 ReceiverPhone = "12345",
                 AddressLine = "Hà Nội",
                 Items = new List<AdminCreateOrderItemDto>()
@@ -74,6 +134,30 @@ namespace api.Tests.Rfq
             Assert.False(result.IsValid);
             Assert.Contains(result.Errors, e => e.PropertyName == nameof(dto.ReceiverPhone));
             Assert.Contains(result.Errors, e => e.PropertyName == nameof(dto.Items));
+        }
+
+        [Fact]
+        public void UpdateOrderDetailsValidator_RejectsMaterialLongerThanDatabaseColumn()
+        {
+            var validator = new AdminUpdateOrderDetailsDtoValidator();
+            var dto = new AdminUpdateOrderDetailsDto
+            {
+                ReceiverName = "Khách A",
+                Items =
+                [
+                    new AdminCreateOrderItemDto
+                    {
+                        ProductName = "Áo custom",
+                        Material = new string('a', 101),
+                        Quantity = 1,
+                        UnitPrice = 100_000m
+                    }
+                ]
+            };
+
+            var result = validator.Validate(dto);
+
+            Assert.Contains(result.Errors, error => error.PropertyName.EndsWith(nameof(AdminCreateOrderItemDto.Material)));
         }
 
         [Fact]
@@ -118,6 +202,7 @@ namespace api.Tests.Rfq
                 new AdminCreateManualOrderDto
                 {
                     ReceiverName = "Lớp 12A1",
+                    CustomerEmail = "lop12a1@example.com",
                     ReceiverPhone = "0987654321",
                     AddressLine = "THPT Chu Văn An",
                     Source = OrderSource.ManualZalo,
@@ -233,6 +318,7 @@ namespace api.Tests.Rfq
             public Task<AdminPagedResultDto<AdminOrderListItemDto>> GetOrdersAsync(string? search = null, string? status = null, int page = 1, int pageSize = 20, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<AdminOrderDetailDto> GetOrderByIdAsync(string orderId, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<AdminOrderDetailDto> UpdateOrderStatusAsync(string orderId, AdminUpdateOrderStatusDto dto, CancellationToken ct = default) => throw new NotImplementedException();
+            public Task<AdminOrderDetailDto> UpdateOrderDetailsAsync(string orderId, AdminUpdateOrderDetailsDto dto, string? actorUserId, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<AdminPagedResultDto<ProductSummaryDto>> GetProductsAsync(string? search = null, bool? isActive = null, int page = 1, int pageSize = 20, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<ProductDto> GetProductByIdAsync(string productId, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<ProductDto> CreateProductAsync(CreateProductDto dto, CancellationToken ct = default) => throw new NotImplementedException();

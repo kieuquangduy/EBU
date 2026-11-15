@@ -20,6 +20,7 @@ namespace api.models.enums
         OutForDelivery = 15,
         Delivered = 16,
         DeliveryFailed = 17,
-        ReturnRejected = 18
+        ReturnRejected = 18,
+        InProduction = 19
     }
 }

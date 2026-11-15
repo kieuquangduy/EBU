@@ -24,6 +24,7 @@ export const OrderStatuses = {
   ReturnRequested: "ReturnRequested",
   ReturnApproved: "ReturnApproved",
   ReturnRejected: "ReturnRejected",
+  InProduction: "InProduction",
   Returned: "Returned",
   Refunded: "Refunded",
 } as const;

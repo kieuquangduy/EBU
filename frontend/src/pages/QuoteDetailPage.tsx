@@ -1,20 +1,46 @@
 import { Icon } from "@iconify/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import type { LogoFileRefDto } from "../@types/quoteRequest.type";
 import { useToast } from "../context/toastContext";
-import { useCancelQuoteRequest, useQuoteDetail } from "../hooks/useQuoteRequests";
+import { useAcceptQuoteRequest, useCancelQuoteRequest, useQuoteDetail } from "../hooks/useQuoteRequests";
 import { useShopContact } from "../hooks/useShopContact";
 import { openZaloProductConsult } from "../lib/productRfq";
 import ZaloIcon from "../components/common/ZaloIcon";
 import {
+  DEFAULT_QUOTE_PRODUCT_IMAGE,
   QUOTE_STATUS_META,
   canCustomerCancelQuote,
   formatPrintTechnique,
   getUserStatusBadge,
+  resolveQuoteProductTitle,
 } from "../lib/quoteStatus";
 import { ROUTES, routeTo } from "../lib/routes";
 import { quoteRequestService } from "../services/quoteRequestService";
 import { formatPrice } from "../utils/formatPrice";
+
+const orderStatusLabels: Record<string, string> = {
+  Pending: "Chờ xử lý",
+  Processing: "Đang xử lý",
+  PaymentSucceeded: "Thanh toán thành công",
+  OrderPlaced: "Đã đặt hàng",
+  SellerConfirmed: "Đã xác nhận",
+  InProduction: "Đang sản xuất",
+  Packing: "Đang đóng gói",
+  Shipping: "Đang giao",
+  HandoverToCarrier: "Đã bàn giao vận chuyển",
+  InTransit: "Đang vận chuyển",
+  OutForDelivery: "Đang giao hàng",
+  Delivered: "Đã giao",
+  DeliveryFailed: "Giao hàng thất bại",
+  Completed: "Hoàn tất",
+  Cancelled: "Đã hủy",
+  ReturnRequested: "Yêu cầu hoàn hàng",
+  ReturnApproved: "Đã duyệt hoàn hàng",
+  ReturnRejected: "Từ chối hoàn hàng",
+  Returned: "Đã hoàn hàng",
+  Refunded: "Đã hoàn tiền",
+};
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +49,7 @@ export default function QuoteDetailPage() {
   const { data: contact } = useShopContact();
   const quoteQuery = useQuoteDetail(id);
   const cancelMutation = useCancelQuoteRequest();
+  const acceptMutation = useAcceptQuoteRequest();
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
 
   if (quoteQuery.isLoading) {
@@ -56,13 +83,32 @@ export default function QuoteDetailPage() {
   const meta = QUOTE_STATUS_META[quote.status];
   const userBadge = getUserStatusBadge(quote.status);
   const isTerminalClosed = quote.status === "Rejected" || quote.status === "Cancelled";
-  const milestoneIndex =
-    quote.status === "Completed"
-      ? 2
-      : quote.status === "Accepted" || quote.status === "InProduction"
-      ? 1
-      : 0;
+  const shippingStatuses = [
+    "Shipping",
+    "HandoverToCarrier",
+    "InTransit",
+    "OutForDelivery",
+    "Delivered",
+    "Completed",
+  ];
+  const productionStatuses = ["InProduction", "Packing", ...shippingStatuses];
+  const hasConfirmedOrder = quote.status === "Accepted" && Boolean(quote.order);
+  const orderMilestones = hasConfirmedOrder && quote.order
+    ? [
+        { label: "Đã xác nhận", done: true },
+        { label: "Đang sản xuất", done: productionStatuses.includes(quote.order.status) },
+        { label: "Đóng gói", done: ["Packing", ...shippingStatuses].includes(quote.order.status) },
+        { label: "Vận chuyển", done: shippingStatuses.includes(quote.order.status) },
+        { label: "Hoàn tất", done: quote.order.status === "Completed" },
+      ]
+    : [
+        { label: "1. Chờ xử lý", done: true },
+        { label: "2. Đã báo giá", done: quote.status === "Quoted" || quote.status === "Accepted" },
+        { label: "3. Báo giá thành công", done: quote.status === "Accepted" },
+      ];
   const sizeEntries = Object.entries(quote.sizeBreakdown ?? {}).filter(([, qty]) => qty > 0);
+  const displayTitle = resolveQuoteProductTitle(quote);
+  const displayImage = quote.productImageUrl || DEFAULT_QUOTE_PRODUCT_IMAGE;
 
   const handleCancel = async () => {
     if (!window.confirm(`Bạn có chắc chắn muốn hủy yêu cầu ${quote.quoteCode}?`)) return;
@@ -94,7 +140,7 @@ export default function QuoteDetailPage() {
   const handleOpenZalo = async () => {
     const result = await openZaloProductConsult({
       zaloPhone: contact?.zaloPhone,
-      productName: `${quote.quoteCode} - ${quote.productName ?? "Áo custom"}`,
+      productName: `${quote.quoteCode} - ${displayTitle}`,
       productUrl: window.location.href,
     });
     if (!result.opened) {
@@ -105,8 +151,8 @@ export default function QuoteDetailPage() {
   };
 
   return (
-    <section className="min-h-[75vh] bg-[#fafafa] py-10 px-4 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-4xl space-y-6">
+    <section className="min-h-[75vh] bg-[#f8faf9] px-4 py-10 font-inter antialiased sm:px-6 lg:px-10" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
             to={ROUTES.QUOTES}
@@ -117,6 +163,24 @@ export default function QuoteDetailPage() {
           </Link>
 
           <div className="flex flex-wrap gap-2">
+            {quote.status === "Quoted" ? (
+              <button
+                type="button"
+                disabled={acceptMutation.isPending}
+                onClick={() =>
+                  void acceptMutation
+                    .mutateAsync(quote.id)
+                    .then(() => showToast("Báo giá thành công, đơn hàng đã được tạo", "success"))
+                    .catch((error: unknown) =>
+                      showToast((error as Error).message || "Không thể xác nhận báo giá", "error")
+                    )
+                }
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <Icon icon="mdi:check-circle-outline" width={17} />
+                {acceptMutation.isPending ? "Đang xác nhận..." : "Chốt báo giá"}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={handleOpenChat}
@@ -146,107 +210,164 @@ export default function QuoteDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-md border border-gray-200 bg-white p-5 sm:p-6 shadow-xs space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="font-mono text-xl sm:text-2xl font-bold text-primeColor">
-                  {quote.quoteCode}
-                </h1>
-                <span className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${userBadge.badgeClass}`}>
-                  {userBadge.label}
-                </span>
-              </div>
-              <p className="mt-1 text-xs sm:text-sm text-lightText">{meta.description}</p>
+        <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h1 className="font-mono text-xl font-bold text-primeColor sm:text-2xl">
+                {quote.quoteCode}
+              </h1>
+              <span className={`rounded-md px-3 py-1 text-xs font-semibold ${userBadge.label === "Báo giá thành công" ? "border border-emerald-500 bg-emerald-500 text-black" : userBadge.badgeClass}`}>
+                {userBadge.label}
+              </span>
             </div>
-            <p className="text-xs text-slate-400">
-              Gửi lúc {new Date(quote.createdAt).toLocaleString("vi-VN")}
-            </p>
+            <p className="mt-1 text-xs text-lightText sm:text-sm">{meta.description}</p>
           </div>
 
-          {!isTerminalClosed ? (
+          {!isTerminalClosed && !hasConfirmedOrder ? (
             <div className="grid grid-cols-3 gap-2.5 pt-1">
-              {[
-                { label: "1. Chờ xử lý", step: 0 },
-                { label: "2. Đã chốt", step: 1 },
-                { label: "3. Hoàn tất", step: 2 },
-              ].map((m) => {
-                const done = milestoneIndex >= m.step;
-                return (
-                  <div key={m.label} className="flex flex-col items-start gap-1">
+              {orderMilestones.map((milestone) => (
+                  <div key={milestone.label} className="flex flex-col items-start gap-1">
                     <div
                       className={`h-1.5 w-full rounded-full ${
-                        done ? "bg-primeColor" : "bg-gray-200"
+                        milestone.done ? "bg-primeColor" : "bg-gray-200"
                       }`}
                     />
                     <span
                       className={`text-[11px] font-semibold ${
-                        done ? "text-primeColor" : "text-slate-400"
+                        milestone.done ? "text-primeColor" : "text-slate-400"
                       }`}
                     >
-                      {m.label}
+                      {milestone.label}
                     </span>
                   </div>
-                );
-              })}
+              ))}
             </div>
-          ) : (
+          ) : null}
+
+          {isTerminalClosed ? (
             <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-xs sm:text-sm text-slate-700">
               Yêu cầu này đang ở trạng thái <strong>Đã hủy</strong>.
             </div>
-          )}
+          ) : null}
 
-          {quote.quotedPrice != null && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-800">
-                  Báo giá chính thức từ xưởng
+          {quote.order ? (
+            <section className="overflow-hidden rounded-xl border border-emerald-200 bg-white">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-emerald-100 bg-emerald-50 px-5 py-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-600">
+                    Sản phẩm: <span className="font-bold text-primeColor">{displayTitle}</span>
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-black">{quote.order.orderCode || quote.order.id}</p>
+                </div>
+                <span className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-emerald-700">
+                  {orderStatusLabels[quote.order.status] || quote.order.status}
                 </span>
-                {quote.quotedAt && (
-                  <span className="text-xs text-emerald-700">
-                    Cập nhật {new Date(quote.quotedAt).toLocaleString("vi-VN")}
-                  </span>
-                )}
               </div>
-              <p className="mt-1.5 text-2xl font-bold text-emerald-700">
-                {formatPrice(quote.quotedPrice)}
-              </p>
-              {quote.quotedNote && (
-                <p className="mt-2 whitespace-pre-line text-sm text-emerald-900">
-                  {quote.quotedNote}
-                </p>
-              )}
-            </div>
-          )}
+
+              <div className="p-5">
+                <div className="overflow-x-auto pb-1">
+                  <div className="grid min-w-[620px] grid-cols-5 gap-3">
+                    {orderMilestones.map((milestone, index) => (
+                      <div key={milestone.label} className="min-w-0 text-center">
+                        <div className="relative flex justify-center">
+                          <span className={`relative z-[1] flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold ${milestone.done ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 bg-white text-slate-500"}`}>
+                            {index + 1}
+                          </span>
+                          {index < orderMilestones.length - 1 ? (
+                            <span className={`absolute left-[calc(50%+14px)] top-1/2 h-0.5 w-[calc(100%+0.75rem-28px)] -translate-y-1/2 ${milestone.done && orderMilestones[index + 1]?.done ? "bg-emerald-500" : "bg-slate-200"}`} />
+                          ) : null}
+                        </div>
+                        <p className={`mt-2 truncate text-center text-xs font-semibold ${milestone.done ? "text-black" : "text-slate-500"}`} title={milestone.label}>
+                          {milestone.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <OrderInfoBox label="Tổng tiền" value={formatPrice(quote.order.total)} />
+                  <OrderInfoBox label="Thanh toán" value={quote.order.paymentStatus === "Paid" ? "Đã thanh toán" : "Chờ thanh toán"} />
+                  <OrderInfoBox label="Đơn vị vận chuyển" value={quote.order.shipping?.carrierName || "Chưa cập nhật"} />
+                  <OrderInfoBox label="Mã vận đơn" value={quote.order.shipping?.trackingNumber || "Chưa cập nhật"} />
+                </div>
+
+                {(quote.order.shipping?.currentLocation || quote.order.shipping?.estimatedDelivery) ? (
+                  <div className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-slate-500">Vị trí hiện tại</p>
+                      <p className="mt-1 font-semibold text-black">{quote.order.shipping?.currentLocation || "Chưa cập nhật"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Dự kiến giao hàng</p>
+                      <p className="mt-1 font-semibold text-black">
+                        {quote.order.shipping?.estimatedDelivery
+                          ? new Date(quote.order.shipping.estimatedDelivery).toLocaleString("vi-VN")
+                          : "Chưa cập nhật"}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {quote.order.shipping?.trackingUrl ? (
+                  <a href={quote.order.shipping.trackingUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-md border border-emerald-500 bg-emerald-50 px-4 py-2 text-xs font-semibold text-black hover:bg-emerald-100">
+                    Theo dõi vận chuyển
+                  </a>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-3">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-6">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
               Thông số sản xuất
             </h2>
-            {quote.productName && (
-              <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-slate-50 p-3">
-                {quote.productImageUrl && (
-                  <img
-                    src={quote.productImageUrl}
-                    alt={quote.productName}
-                    className="h-12 w-12 rounded-lg object-cover"
-                  />
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-primeColor">{quote.productName}</p>
-                  {quote.productSlug && (
-                    <Link
-                      to={routeTo.product(quote.productSlug)}
-                      className="text-xs font-medium text-[#1d4ed8] hover:underline"
-                    >
-                      Xem mẫu áo →
-                    </Link>
-                  )}
-                </div>
+            {quote.quotedPrice != null ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3.5 py-2.5 text-xs text-slate-600">
+                <p>
+                  Tổng giá: <span className="text-sm font-medium text-black">{formatPrice(quote.quotedPrice)}</span>
+                </p>
+                {quote.quotedAt ? (
+                  <time>Cập nhật {new Date(quote.quotedAt).toLocaleString("vi-VN")}</time>
+                ) : null}
               </div>
-            )}
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
+              <div className="min-w-0 rounded-lg border border-slate-200 px-4 py-3">
+                <p className="text-xs text-slate-500">Tên sản phẩm</p>
+                <p className="mt-1 truncate text-sm font-medium text-black" title={displayTitle}>
+                  {displayTitle}
+                </p>
+                {quote.productSlug ? (
+                  <Link to={routeTo.product(quote.productSlug)} className="mt-2 inline-block text-xs font-medium text-emerald-700 hover:underline">
+                    Xem mẫu áo
+                  </Link>
+                ) : null}
+              </div>
+              <div className="rounded-lg border border-slate-200 px-3 py-3 text-center">
+                <p className="text-xs text-slate-500">Ảnh sản phẩm</p>
+                <a
+                  href={displayImage}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mx-auto mt-2 block w-fit overflow-hidden rounded-md border border-slate-200 bg-white"
+                >
+                  <img
+                    src={displayImage}
+                    alt={displayTitle}
+                    className="h-24 w-32 object-cover transition hover:scale-105"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (target.src !== DEFAULT_QUOTE_PRODUCT_IMAGE) {
+                        target.src = DEFAULT_QUOTE_PRODUCT_IMAGE;
+                      }
+                    }}
+                  />
+                </a>
+              </div>
+            </div>
 
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between gap-3">
@@ -300,7 +421,7 @@ export default function QuoteDetailPage() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-6">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
               Thông tin liên hệ &amp; File đính kèm
             </h2>
@@ -345,12 +466,22 @@ export default function QuoteDetailPage() {
                 const designFiles = quote.logoFiles.filter((f) =>
                   /\.(png|jpe?g|svg|webp|ai)$/i.test(f.fileName || f.originalName)
                 );
+                const previewFiles = designFiles.filter((file) =>
+                  file.contentType.startsWith("image/") || /\.(png|jpe?g|svg|webp)$/i.test(file.originalName)
+                );
                 const sizeFiles = quote.logoFiles.filter(
                   (f) => !/\.(png|jpe?g|svg|webp|ai)$/i.test(f.fileName || f.originalName)
                 );
 
                 return (
                   <div className="space-y-3">
+                    {previewFiles.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {previewFiles.map((file) => (
+                          <QuoteImagePreview key={file.fileName} quoteId={quote.id} file={file} />
+                        ))}
+                      </div>
+                    ) : null}
                     {designFiles.length > 0 && (
                       <div className="space-y-1.5">
                         <p className="text-xs font-medium text-slate-600 flex items-center gap-1">
@@ -416,6 +547,56 @@ export default function QuoteDetailPage() {
         </div>
       </div>
     </section>
+  );
+}
+
+function OrderInfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-black" title={value}>{value}</p>
+    </div>
+  );
+}
+
+function QuoteImagePreview({ quoteId, file }: { quoteId: string; file: LogoFileRefDto }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+
+    void quoteRequestService.getLogoBlob(quoteId, file.fileName)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [file.fileName, quoteId]);
+
+  return (
+    <button
+      type="button"
+      disabled={!previewUrl}
+      onClick={() => previewUrl && window.open(previewUrl, "_blank", "noopener,noreferrer")}
+      className="group overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-left disabled:cursor-wait"
+      aria-label={`Xem ảnh ${file.originalName}`}
+    >
+      {previewUrl ? (
+        <img src={previewUrl} alt={file.originalName} className="h-28 w-full object-cover transition group-hover:scale-105" />
+      ) : (
+        <span className="block h-28 animate-pulse bg-slate-100" />
+      )}
+      <span className="block truncate border-t border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-black">
+        {file.originalName}
+      </span>
+    </button>
   );
 }
 

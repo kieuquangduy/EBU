@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { userService } from '../../services/userService';
 import type { UpdateProfileDto } from '../../@types/auth.type';
 import type { AddressDto, CreateAddressDto } from '../../@types/address.type';
+import { sanitizeErrorMessage } from '../../api/apiClient';
 import { ROUTES } from '../../lib/routes';
 
 const translateRole = (role?: string) => {
@@ -58,7 +59,7 @@ const translateError = (message: string) => {
         'Invalid address response': 'Dữ liệu địa chỉ trả về không hợp lệ.',
     };
 
-    return messages[message] ?? message;
+    return messages[message] ?? sanitizeErrorMessage(message, 'Đã xảy ra lỗi. Vui lòng thử lại sau.');
 };
 
 const Profile: React.FC = () => {

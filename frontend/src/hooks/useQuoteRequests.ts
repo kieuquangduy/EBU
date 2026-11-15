@@ -76,3 +76,16 @@ export function useCancelQuoteRequest() {
   });
 }
 
+export function useAcceptQuoteRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (quoteId: string) => quoteRequestService.acceptQuote(quoteId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKeys.quotes.detail(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.mineRoot });
+      queryClient.invalidateQueries({ queryKey: ["admin", "quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+    },
+  });
+}
+

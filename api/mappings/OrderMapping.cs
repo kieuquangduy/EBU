@@ -31,6 +31,7 @@ namespace api.mappings
                     VariantSku = i.VariantSku,
                     VariantSize = i.VariantSize,
                     VariantColor = i.VariantColor,
+                    Material = i.Material,
                     Quantity = i.Quantity,
                     Price = i.Price,
                     Total = i.Total

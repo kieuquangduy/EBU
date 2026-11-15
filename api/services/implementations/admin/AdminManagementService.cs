@@ -9,6 +9,7 @@ using api.models.enums;
 using api.services.interfaces.admin;
 using api.services.interfaces.cloud;
 using api.services.interfaces.notification;
+using api.services.implementations.quote;
 using Microsoft.EntityFrameworkCore;
 
 namespace api.services.implementations.admin
@@ -328,10 +329,10 @@ namespace api.services.implementations.admin
                     o.ReceiverPhone.Contains(normalizedSearch));
             }
 
-            if (!string.IsNullOrWhiteSpace(status) &&
-                Enum.TryParse<OrderStatus>(status, true, out var parsedStatus))
+            var filteredStatuses = ResolveOrderStatuses(status);
+            if (filteredStatuses.Length > 0)
             {
-                query = query.Where(o => o.Status == parsedStatus);
+                query = query.Where(o => filteredStatuses.Contains(o.Status));
             }
 
             var total = await query.CountAsync(ct);
@@ -375,11 +376,28 @@ namespace api.services.implementations.admin
             };
         }
 
+        internal static OrderStatus[] ResolveOrderStatuses(string? filter)
+        {
+            if (string.IsNullOrWhiteSpace(filter)) return [];
+
+            return filter.Trim().ToLowerInvariant() switch
+            {
+                "pending" => [OrderStatus.Pending, OrderStatus.OrderPlaced, OrderStatus.Processing, OrderStatus.SellerConfirmed],
+                "production" => [OrderStatus.InProduction, OrderStatus.Packing],
+                "shipping" => [OrderStatus.Shipping, OrderStatus.HandoverToCarrier, OrderStatus.InTransit, OrderStatus.OutForDelivery, OrderStatus.DeliveryFailed],
+                "completed" => [OrderStatus.Delivered, OrderStatus.Completed, OrderStatus.PaymentSucceeded],
+                "cancelled" => [OrderStatus.Cancelled],
+                "returns" => [OrderStatus.ReturnRequested, OrderStatus.ReturnApproved, OrderStatus.ReturnRejected, OrderStatus.Returned, OrderStatus.Refunded],
+                _ => Enum.TryParse<OrderStatus>(filter, true, out var status) ? [status] : []
+            };
+        }
+
         public async Task<AdminOrderDetailDto> GetOrderByIdAsync(string orderId, CancellationToken ct = default)
         {
             var order = await _context.Orders
                 .AsNoTracking()
                 .Include(o => o.User)
+                .Include(o => o.QuoteRequest)
                 .Include(o => o.OrderItems)
                 .Include(o => o.Payments)
                 .Include(o => o.ShippingDetail)
@@ -398,7 +416,7 @@ namespace api.services.implementations.admin
                 CustomerName = order.User != null
                     ? ((order.User.FirstName ?? string.Empty) + " " + (order.User.LastName ?? string.Empty)).Trim()
                     : order.ReceiverName,
-                CustomerEmail = order.User?.Email,
+                CustomerEmail = order.CustomerEmail ?? order.User?.Email,
                 ReceiverName = order.ReceiverName,
                 ReceiverPhone = order.ReceiverPhone,
                 AddressLine = order.AddressLine,
@@ -423,13 +441,26 @@ namespace api.services.implementations.admin
                         VariantSku = i.VariantSku,
                         VariantSize = i.VariantSize,
                         VariantColor = i.VariantColor,
+                        Material = i.Material,
                         Quantity = i.Quantity,
                         Price = i.Price,
                         Total = i.Total
                     })
                     .ToList(),
                 Shipping = OrderMapping.MapToDto(order).Shipping,
-                StatusHistory = OrderMapping.MapToDto(order).StatusHistory
+                StatusHistory = OrderMapping.MapToDto(order).StatusHistory,
+                RfqDetails = order.Source == OrderSource.Rfq && order.QuoteRequest != null
+                    ? new AdminRfqOrderDetailsDto
+                    {
+                        QuoteCode = order.QuoteRequest.QuoteCode,
+                        SizeBreakdown = QuoteStatusTransitionHelper.DeserializeSizeBreakdown(order.QuoteRequest.SizeBreakdownJson),
+                        Material = order.QuoteRequest.Material,
+                        ColorSelection = order.QuoteRequest.ColorSelection,
+                        PrintTechnique = order.QuoteRequest.PrintTechnique.ToString(),
+                        LogoFiles = QuoteStatusTransitionHelper.DeserializeLogoFiles(order.QuoteRequest.LogoFileUrlsJson)
+                    }
+                    : null,
+                CustomFiles = QuoteStatusTransitionHelper.DeserializeLogoFiles(order.CustomFilesJson)
             };
         }
 
@@ -447,6 +478,11 @@ namespace api.services.implementations.admin
                 .Include(o => o.ShippingDetail)
                 .FirstOrDefaultAsync(o => o.Id == orderId, ct)
                 ?? throw new KeyNotFoundException("Order not found");
+
+            if (!IsValidStatusTransition(order.Status, dto.Status))
+            {
+                throw new InvalidOperationException($"Không thể chuyển trạng thái đơn hàng từ {order.Status} sang {dto.Status}.");
+            }
 
             var now = DateTime.UtcNow;
             order.Status = dto.Status;
@@ -496,7 +532,7 @@ namespace api.services.implementations.admin
                 OrderId = order.Id,
                 Status = dto.Status,
                 Title = $"Cập nhật trạng thái: {dto.Status}",
-                Description = dto.Note,
+                Description = BuildStatusHistoryDescription(dto.Status, dto.Note),
                 Location = dto.CurrentLocation,
                 Note = dto.Note,
                 ActorRole = Role.Admin.ToString(),
@@ -505,6 +541,85 @@ namespace api.services.implementations.admin
 
             await _context.SaveChangesAsync(ct);
             return await GetOrderByIdAsync(orderId, ct);
+        }
+
+        public async Task<AdminOrderDetailDto> UpdateOrderDetailsAsync(
+            string orderId,
+            AdminUpdateOrderDetailsDto dto,
+            string? actorUserId,
+            CancellationToken ct = default)
+        {
+            var order = await _context.Orders
+                .Include(o => o.OrderItems)
+                .Include(o => o.Payments)
+                .Include(o => o.StatusHistories)
+                .FirstOrDefaultAsync(o => o.Id == orderId, ct)
+                ?? throw new KeyNotFoundException("Order not found");
+
+            var productIds = dto.Items
+                .Where(item => !string.IsNullOrWhiteSpace(item.ProductId))
+                .Select(item => item.ProductId!.Trim())
+                .Distinct()
+                .ToList();
+            var existingProductIds = productIds.Count == 0
+                ? new HashSet<string>()
+                : (await _context.Products.AsNoTracking()
+                    .Where(product => productIds.Contains(product.Id))
+                    .Select(product => product.Id)
+                    .ToListAsync(ct))
+                    .ToHashSet();
+            if (productIds.Any(id => !existingProductIds.Contains(id)))
+            {
+                throw new KeyNotFoundException("Có sản phẩm không còn tồn tại.");
+            }
+
+            var now = DateTime.UtcNow;
+            _context.OrderItems.RemoveRange(order.OrderItems);
+            order.OrderItems = dto.Items.Select(item => new OrderItem
+            {
+                Id = Guid.NewGuid().ToString(),
+                OrderId = order.Id,
+                ProductId = string.IsNullOrWhiteSpace(item.ProductId) ? null : item.ProductId.Trim(),
+                ProductName = item.ProductName.Trim(),
+                VariantSize = string.IsNullOrWhiteSpace(item.VariantSize) ? null : item.VariantSize.Trim(),
+                VariantColor = string.IsNullOrWhiteSpace(item.VariantColor) ? null : item.VariantColor.Trim(),
+                Material = string.IsNullOrWhiteSpace(item.Material) ? null : item.Material.Trim(),
+                Quantity = item.Quantity,
+                Price = item.UnitPrice,
+                Total = Math.Round(item.Quantity * item.UnitPrice, 2),
+                Created = now
+            }).ToList();
+            order.ReceiverName = dto.ReceiverName.Trim();
+            order.CustomerEmail = string.IsNullOrWhiteSpace(dto.CustomerEmail) ? null : dto.CustomerEmail.Trim();
+            order.ReceiverPhone = dto.ReceiverPhone.Trim();
+            order.AddressLine = dto.AddressLine.Trim();
+            order.Note = string.IsNullOrWhiteSpace(dto.Note) ? null : dto.Note.Trim();
+            order.Subtotal = order.OrderItems.Sum(item => item.Total);
+            order.ShippingFee = dto.ShippingFee;
+            order.Total = order.Subtotal + order.ShippingFee;
+            order.Updated = now;
+
+            var pendingPayment = order.Payments.OrderByDescending(payment => payment.Created).FirstOrDefault();
+            if (pendingPayment?.Status == PaymentStatus.Pending)
+            {
+                pendingPayment.Amount = Math.Max(order.Total, 1m);
+                pendingPayment.Updated = now;
+            }
+
+            order.StatusHistories.Add(new OrderStatusHistory
+            {
+                Id = Guid.NewGuid().ToString(),
+                OrderId = order.Id,
+                Status = order.Status,
+                Title = "Cập nhật chi tiết đơn hàng",
+                Description = "Thông tin nhận hàng hoặc danh sách sản phẩm đã được cập nhật.",
+                ActorUserId = actorUserId,
+                ActorRole = Role.Admin.ToString(),
+                Created = now
+            });
+
+            await _context.SaveChangesAsync(ct);
+            return await GetOrderByIdAsync(order.Id, ct);
         }
 
         public async Task<AdminOrderDetailDto> CreateOrderFromQuoteAsync(
@@ -518,9 +633,9 @@ namespace api.services.implementations.admin
                 .FirstOrDefaultAsync(q => q.Id == quoteRequestId, ct)
                 ?? throw new KeyNotFoundException("Quote request not found");
 
-            if (quote.Status is QuoteStatus.Cancelled or QuoteStatus.Rejected)
+            if (!CanCreateOrderFromQuote(quote.Status))
             {
-                throw new InvalidOperationException("Không thể tạo đơn hàng từ yêu cầu báo giá đã hủy hoặc từ chối.");
+                throw new InvalidOperationException("Chỉ có thể hoàn tất báo giá và tạo đơn từ báo giá đã gửi.");
             }
 
             var hasActiveOrder = await _context.Orders
@@ -545,10 +660,7 @@ namespace api.services.implementations.admin
                     : $"Áo custom - {quote.OrganizationName}");
 
             var now = DateTime.UtcNow;
-            if (quote.Status is QuoteStatus.Pending or QuoteStatus.Contacted or QuoteStatus.Quoted)
-            {
-                quote.Status = QuoteStatus.Accepted;
-            }
+            quote.Status = QuoteStatus.Accepted;
 
             quote.QuotedPrice ??= subtotal;
             quote.QuotedAt ??= now;
@@ -562,6 +674,7 @@ namespace api.services.implementations.admin
                     ProductId = quote.ProductId,
                     ProductName = productName,
                     VariantColor = quote.ColorSelection,
+                    Material = quote.Material,
                     Quantity = quote.Quantity,
                     Price = unitPrice,
                     Total = subtotal,
@@ -571,6 +684,7 @@ namespace api.services.implementations.admin
 
             return await CreateAdminOrderRecordAsync(
                 quote.UserId,
+                quote.Email,
                 OrderSource.Rfq,
                 quote.Id,
                 string.IsNullOrWhiteSpace(dto.ReceiverName) ? quote.CustomerName : dto.ReceiverName.Trim(),
@@ -601,6 +715,13 @@ namespace api.services.implementations.admin
                 {
                     throw new KeyNotFoundException("User not found");
                 }
+            }
+            else if (!string.IsNullOrWhiteSpace(dto.CustomerEmail))
+            {
+                userId = await _context.Users.AsNoTracking()
+                    .Where(u => u.Email == dto.CustomerEmail.Trim())
+                    .Select(u => u.Id)
+                    .FirstOrDefaultAsync(ct);
             }
 
             var productIds = dto.Items
@@ -633,6 +754,7 @@ namespace api.services.implementations.admin
                     ProductName = item.ProductName.Trim(),
                     VariantSize = string.IsNullOrWhiteSpace(item.VariantSize) ? null : item.VariantSize.Trim(),
                     VariantColor = string.IsNullOrWhiteSpace(item.VariantColor) ? null : item.VariantColor.Trim(),
+                    Material = string.IsNullOrWhiteSpace(item.Material) ? null : item.Material.Trim(),
                     Quantity = item.Quantity,
                     Price = item.UnitPrice,
                     Total = lineTotal,
@@ -645,6 +767,7 @@ namespace api.services.implementations.admin
 
             return await CreateAdminOrderRecordAsync(
                 userId,
+                dto.CustomerEmail.Trim(),
                 source,
                 null,
                 dto.ReceiverName.Trim(),
@@ -702,6 +825,7 @@ namespace api.services.implementations.admin
                     Amount = Math.Max(order.Total, 1m),
                     Status = targetStatus,
                     PaidAt = paidAt,
+                    TransactionNo = $"PAY-{Guid.NewGuid():N}",
                     OrderInfo = string.IsNullOrWhiteSpace(dto.Note) ? "Admin cập nhật thanh toán" : dto.Note.Trim(),
                     Created = now,
                     Updated = now
@@ -729,6 +853,7 @@ namespace api.services.implementations.admin
 
         private async Task<AdminOrderDetailDto> CreateAdminOrderRecordAsync(
             string? userId,
+            string? customerEmail,
             OrderSource source,
             string? quoteRequestId,
             string receiverName,
@@ -759,6 +884,7 @@ namespace api.services.implementations.admin
                 Id = orderId,
                 OrderCode = orderCode,
                 UserId = userId,
+                CustomerEmail = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim(),
                 Source = source,
                 QuoteRequestId = quoteRequestId,
                 Subtotal = subtotal,
@@ -802,6 +928,7 @@ namespace api.services.implementations.admin
                         Amount = total,
                         Status = isPaid ? PaymentStatus.Paid : PaymentStatus.Pending,
                         PaidAt = isPaid ? (paidAt ?? now) : null,
+                        TransactionNo = $"PAY-{Guid.NewGuid():N}",
                         OrderInfo = note ?? historyDescription,
                         Created = now,
                         Updated = now
@@ -1316,7 +1443,10 @@ namespace api.services.implementations.admin
             };
         }
 
-        private static bool IsValidStatusTransition(OrderStatus currentStatus, OrderStatus nextStatus)
+        internal static bool CanCreateOrderFromQuote(QuoteStatus status)
+            => status is QuoteStatus.Quoted or QuoteStatus.Accepted;
+
+        internal static bool IsValidStatusTransition(OrderStatus currentStatus, OrderStatus nextStatus)
         {
             if (currentStatus == nextStatus)
             {
@@ -1325,11 +1455,22 @@ namespace api.services.implementations.admin
 
             return currentStatus switch
             {
-                OrderStatus.Pending => nextStatus is OrderStatus.Processing or OrderStatus.Cancelled,
-                OrderStatus.Processing => nextStatus is OrderStatus.Shipping or OrderStatus.Cancelled,
-                OrderStatus.Shipping => nextStatus == OrderStatus.Completed,
+                OrderStatus.Pending => nextStatus is OrderStatus.Processing or OrderStatus.OrderPlaced or OrderStatus.SellerConfirmed or OrderStatus.Cancelled,
+                OrderStatus.Processing => nextStatus is OrderStatus.SellerConfirmed or OrderStatus.Packing or OrderStatus.HandoverToCarrier or OrderStatus.Shipping or OrderStatus.Cancelled,
+                OrderStatus.Shipping => nextStatus is OrderStatus.InTransit or OrderStatus.OutForDelivery or OrderStatus.Delivered or OrderStatus.DeliveryFailed or OrderStatus.Completed,
+                OrderStatus.PaymentSucceeded => nextStatus is OrderStatus.SellerConfirmed or OrderStatus.Completed,
+                OrderStatus.OrderPlaced => nextStatus is OrderStatus.SellerConfirmed or OrderStatus.Cancelled,
+                OrderStatus.SellerConfirmed => nextStatus is OrderStatus.InProduction or OrderStatus.Packing or OrderStatus.Cancelled,
+                OrderStatus.InProduction => nextStatus is OrderStatus.Packing or OrderStatus.HandoverToCarrier or OrderStatus.Shipping or OrderStatus.Cancelled,
+                OrderStatus.Packing => nextStatus is OrderStatus.HandoverToCarrier or OrderStatus.Cancelled,
+                OrderStatus.HandoverToCarrier => nextStatus is OrderStatus.InTransit or OrderStatus.DeliveryFailed,
+                OrderStatus.InTransit => nextStatus is OrderStatus.OutForDelivery or OrderStatus.DeliveryFailed,
+                OrderStatus.OutForDelivery => nextStatus is OrderStatus.Delivered or OrderStatus.DeliveryFailed,
+                OrderStatus.DeliveryFailed => nextStatus is OrderStatus.OutForDelivery or OrderStatus.Returned or OrderStatus.Cancelled,
+                OrderStatus.Delivered => nextStatus is OrderStatus.Completed or OrderStatus.ReturnRequested,
                 OrderStatus.Completed => nextStatus == OrderStatus.ReturnRequested,
-                OrderStatus.ReturnRequested => nextStatus == OrderStatus.ReturnApproved,
+                OrderStatus.ReturnRequested => nextStatus is OrderStatus.ReturnApproved or OrderStatus.ReturnRejected,
+                OrderStatus.ReturnRejected => nextStatus is OrderStatus.Delivered or OrderStatus.Completed,
                 OrderStatus.ReturnApproved => nextStatus == OrderStatus.Returned,
                 OrderStatus.Returned => nextStatus == OrderStatus.Refunded,
                 OrderStatus.Cancelled => false,
@@ -1337,6 +1478,9 @@ namespace api.services.implementations.admin
                 _ => false
             };
         }
+
+        internal static string BuildStatusHistoryDescription(OrderStatus status, string? note)
+            => string.IsNullOrWhiteSpace(note) ? $"Đơn hàng chuyển sang {status}." : note.Trim();
 
         private async Task TryNotifyOrderStatusChangedAsync(
             string orderId,

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using api.models.enums;
+using api.DTOs.order;
 
 namespace api.DTOs.quote
 {
@@ -77,6 +78,7 @@ namespace api.DTOs.quote
         public string? ProductName { get; set; }
         public string? ProductSlug { get; set; }
         public string? ProductImageUrl { get; set; }
+        public decimal? ProductUnitPrice { get; set; }
         public string? UserId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string Phone { get; set; } = string.Empty;
@@ -87,6 +89,8 @@ namespace api.DTOs.quote
         public PrintTechnique PrintTechnique { get; set; }
         public QuoteStatus Status { get; set; }
         public decimal? QuotedPrice { get; set; }
+        public string? OrderId { get; set; }
+        public string? OrderCode { get; set; }
         public string? AssignedAdminId { get; set; }
         public string? AssignedAdminName { get; set; }
         public DateTime? ExpectedDeliveryDate { get; set; }
@@ -103,6 +107,17 @@ namespace api.DTOs.quote
         public string? QuotedNote { get; set; }
         public string? InternalNote { get; set; }
         public DateTime? QuotedAt { get; set; }
+        public QuoteOrderProgressDto? Order { get; set; }
+    }
+
+    public class QuoteOrderProgressDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string? OrderCode { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string PaymentStatus { get; set; } = string.Empty;
+        public decimal Total { get; set; }
+        public ShippingDetailDto? Shipping { get; set; }
     }
 
     public class CreateQuoteRequestResultDto

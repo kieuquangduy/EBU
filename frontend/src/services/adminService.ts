@@ -1,4 +1,5 @@
 import { http } from "../lib/http";
+import api from "../api/apiClient";
 import type {
   AdminCreateManualOrderDto,
   AdminCreateOrderFromQuoteDto,
@@ -9,6 +10,7 @@ import type {
   AdminSettingsDto,
   AdminUpdateOrderPaymentDto,
   AdminUpdateOrderStatusDto,
+  AdminUpdateOrderDetailsDto,
   AdminUpdateUserDto,
   AdminUpdateUserRoleDto,
   AdminUserDetailDto,
@@ -83,13 +85,13 @@ export const adminService = {
   },
 
   getOrders(filters: AdminOrderFilters = {}) {
-    return http.get<AdminPagedResultDto<AdminOrderListItemDto>>("/admin/orders", {
+    return http.get<AdminPagedResultDto<AdminOrderListItemDto>>("/order-management", {
       params: filters,
     });
   },
 
   getOrderById(orderId: string) {
-    return http.get<AdminOrderDetailDto>(`/admin/orders/${orderId}`);
+    return http.get<AdminOrderDetailDto>(`/order-management/${orderId}`);
   },
 
   createOrderFromQuote(quoteRequestId: string, dto: AdminCreateOrderFromQuoteDto) {
@@ -100,15 +102,65 @@ export const adminService = {
   },
 
   createManualOrder(dto: AdminCreateManualOrderDto) {
-    return http.post<AdminOrderDetailDto>("/admin/orders", dto);
+    return http.post<AdminOrderDetailDto>("/order-management", dto);
   },
 
   updateOrderStatus(orderId: string, dto: AdminUpdateOrderStatusDto) {
-    return http.patch<AdminOrderDetailDto>(`/admin/orders/${orderId}/status`, dto);
+    return http.patch<AdminOrderDetailDto>(`/order-management/${orderId}/status`, dto);
+  },
+
+  updateOrderDetails(orderId: string, dto: AdminUpdateOrderDetailsDto) {
+    return http.put<AdminOrderDetailDto>(`/order-management/${orderId}/details`, dto);
+  },
+
+  uploadOrderFiles(orderId: string, files: File[]) {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file, file.name));
+    return http.post<import("../@types/quoteRequest.type").LogoFileRefDto[]>(
+      `/order-management/${orderId}/files`,
+      formData
+    );
+  },
+
+  deleteOrderFile(orderId: string, fileName: string) {
+    return http.delete<import("../@types/quoteRequest.type").LogoFileRefDto[]>(
+      `/order-management/${encodeURIComponent(orderId)}/files/${encodeURIComponent(fileName)}`
+    );
+  },
+
+  async getOrderFileBlob(orderId: string, fileName: string) {
+    const response = await api.get<Blob>(
+      `/order-management/${encodeURIComponent(orderId)}/files/${encodeURIComponent(fileName)}`,
+      { responseType: "blob" }
+    );
+    return response.data;
+  },
+
+  async downloadOrderFile(orderId: string, fileName: string, originalName: string) {
+    const url = URL.createObjectURL(await this.getOrderFileBlob(orderId, fileName));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = originalName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
+  async previewOrderFile(orderId: string, fileName: string) {
+    const url = URL.createObjectURL(await this.getOrderFileBlob(orderId, fileName));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
 
   updateOrderPaymentStatus(orderId: string, dto: AdminUpdateOrderPaymentDto) {
-    return http.patch<AdminOrderDetailDto>(`/admin/orders/${orderId}/payment-status`, dto);
+    return http.patch<AdminOrderDetailDto>(`/order-management/${orderId}/payment-status`, dto);
   },
 
   getQuotes(filters: QuoteRequestFilterDto = {}) {

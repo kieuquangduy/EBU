@@ -123,7 +123,7 @@ export default function AdminProductsPage() {
   const [uploading, setUploading] = useState(false);
   const debouncedSearch = useDebounce(search, 350);
 
-  const { widths, startResize } = useResizableColumns([
+  const { widths, totalWidth, startResize } = useResizableColumns([
     56, 120, 210, 160, 120, 90, 115, 110, 175,
   ]);
 
@@ -396,7 +396,10 @@ export default function AdminProductsPage() {
           </div>
 
           <div className="overflow-x-auto px-2 pt-2 sm:px-4">
-            <table className="w-full table-fixed border-collapse font-inter text-sm font-normal">
+            <table
+              className="w-full table-fixed border-collapse font-inter text-sm font-normal"
+              style={{ minWidth: totalWidth }}
+            >
               <colgroup>
                 {widths.map((w, i) => (
                   <col key={i} style={{ width: w }} />
@@ -707,7 +710,7 @@ export default function AdminProductsPage() {
                 <div className="rounded-lg border border-gray-200 p-4">
                   <p className="text-sm font-medium text-gray-800">Biến thể hiện có</p>
                   <div className="mt-3 overflow-x-auto">
-                    <table className="w-full table-fixed border-collapse font-inter text-xs font-normal">
+                    <table className="w-full min-w-[320px] table-fixed border-collapse font-inter text-xs font-normal">
                       <thead>
                         <tr className="border-b border-gray-200 text-left uppercase tracking-wider text-gray-400">
                           <th className="w-36 whitespace-nowrap py-2 pr-2 font-medium">Mã biến thể</th>

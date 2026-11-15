@@ -55,6 +55,7 @@ export interface QuoteRequestSummaryDto {
   productName?: string | null;
   productSlug?: string | null;
   productImageUrl?: string | null;
+  productUnitPrice?: number | null;
   userId?: string | null;
   customerName: string;
   phone: string;
@@ -65,6 +66,8 @@ export interface QuoteRequestSummaryDto {
   printTechnique: PrintTechnique;
   status: QuoteStatus;
   quotedPrice?: number | null;
+  orderId?: string | null;
+  orderCode?: string | null;
   assignedAdminId?: string | null;
   assignedAdminName?: string | null;
   expectedDeliveryDate?: string | null;
@@ -80,11 +83,21 @@ export interface QuoteRequestDto extends QuoteRequestSummaryDto {
   quotedNote?: string | null;
   internalNote?: string | null;
   quotedAt?: string | null;
+  order?: QuoteOrderProgressDto | null;
+}
+
+export interface QuoteOrderProgressDto {
+  id: string;
+  orderCode?: string | null;
+  status: string;
+  paymentStatus: string;
+  total: number;
+  shipping?: import("./order.type").ShippingDetailDto | null;
 }
 
 export interface QuoteRequestFilterDto {
   status?: QuoteStatus | "";
-  statusGroup?: "pending" | "accepted" | "completed" | "cancelled" | "";
+  statusGroup?: "pending" | "quoted" | "accepted" | "cancelled" | "";
   fromDate?: string;
   toDate?: string;
   assignedAdminId?: string;

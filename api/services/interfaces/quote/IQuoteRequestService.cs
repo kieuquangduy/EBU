@@ -25,6 +25,11 @@ namespace api.services.interfaces.quote
             string currentUserId,
             CancellationToken ct = default);
 
+        Task<QuoteRequestDto> AcceptByUserAsync(
+            string id,
+            string currentUserId,
+            CancellationToken ct = default);
+
         Task<PagedQuoteRequestDto> GetAdminQuotesAsync(
             QuoteRequestQueryDto query,
             CancellationToken ct = default);

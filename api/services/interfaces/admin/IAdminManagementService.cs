@@ -40,6 +40,12 @@ namespace api.services.interfaces.admin
             AdminUpdateOrderStatusDto dto,
             CancellationToken ct = default);
 
+        Task<AdminOrderDetailDto> UpdateOrderDetailsAsync(
+            string orderId,
+            AdminUpdateOrderDetailsDto dto,
+            string? actorUserId,
+            CancellationToken ct = default);
+
         Task<AdminOrderDetailDto> CreateOrderFromQuoteAsync(
             string quoteRequestId,
             AdminCreateOrderFromQuoteDto dto,

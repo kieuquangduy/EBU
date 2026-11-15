@@ -494,6 +494,13 @@ namespace api.Migrations
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+                    b.Property<string>("CustomFilesJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CustomerEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
                     b.Property<string>("Note")
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)");
@@ -600,6 +607,10 @@ namespace api.Migrations
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Material")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("ProductId")
                         .HasMaxLength(50)
@@ -1605,6 +1616,11 @@ namespace api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
+                    b.Property<bool>("IsEmailVerified")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true);
+
                     b.Property<bool>("IsOnline")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("tinyint(1)")
@@ -1815,7 +1831,7 @@ namespace api.Migrations
             modelBuilder.Entity("api.models.entities.Order", b =>
                 {
                     b.HasOne("api.models.entities.QuoteRequest", "QuoteRequest")
-                        .WithMany()
+                        .WithMany("Orders")
                         .HasForeignKey("QuoteRequestId")
                         .OnDelete(DeleteBehavior.SetNull);
 
@@ -2132,6 +2148,11 @@ namespace api.Migrations
                     b.Navigation("Reviews");
 
                     b.Navigation("Wishlists");
+                });
+
+            modelBuilder.Entity("api.models.entities.QuoteRequest", b =>
+                {
+                    b.Navigation("Orders");
                 });
 
             modelBuilder.Entity("api.models.entities.ShippingDetail", b =>

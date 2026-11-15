@@ -1,8 +1,9 @@
 import type { OrderStatus, PaymentStatus, Role } from "./enums.type";
 import type { OrderStatusHistoryDto, ShippingDetailDto } from "./order.type";
 import type { QuoteStatus } from "./quoteRequest.type";
+import type { LogoFileRefDto } from "./quoteRequest.type";
 
-export type OrderSource = "Storefront" | "FromQuote" | "ManualZalo";
+export type OrderSource = "Storefront" | "Rfq" | "ManualZalo" | "ManualMessenger" | "ManualHotline" | "Other";
 
 export interface LowStockProductDto {
   id: string;
@@ -163,6 +164,7 @@ export interface AdminOrderItemDto {
   variantSku?: string | null;
   variantSize?: string | null;
   variantColor?: string | null;
+  material?: string | null;
   quantity: number;
   price: number;
   total: number;
@@ -190,6 +192,17 @@ export interface AdminOrderDetailDto {
   items: AdminOrderItemDto[];
   shipping?: ShippingDetailDto | null;
   statusHistory: OrderStatusHistoryDto[];
+  rfqDetails?: AdminRfqOrderDetailsDto | null;
+  customFiles: LogoFileRefDto[];
+}
+
+export interface AdminRfqOrderDetailsDto {
+  quoteCode: string;
+  sizeBreakdown: Record<string, number>;
+  material?: string | null;
+  colorSelection?: string | null;
+  printTechnique: string;
+  logoFiles: LogoFileRefDto[];
 }
 
 export interface AdminCreateOrderFromQuoteDto {
@@ -208,12 +221,14 @@ export interface AdminCreateOrderItemDto {
   productName: string;
   variantSize?: string | null;
   variantColor?: string | null;
+  material?: string | null;
   quantity: number;
   unitPrice: number;
 }
 
 export interface AdminCreateManualOrderDto {
   receiverName: string;
+  customerEmail: string;
   receiverPhone: string;
   addressLine: string;
   userId?: string | null;
@@ -222,6 +237,16 @@ export interface AdminCreateManualOrderDto {
   shippingFee: number;
   isPaid: boolean;
   paidAt?: string | null;
+  items: AdminCreateOrderItemDto[];
+}
+
+export interface AdminUpdateOrderDetailsDto {
+  receiverName: string;
+  customerEmail?: string | null;
+  receiverPhone: string;
+  addressLine: string;
+  note?: string | null;
+  shippingFee: number;
   items: AdminCreateOrderItemDto[];
 }
 

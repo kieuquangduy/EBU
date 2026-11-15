@@ -1,6 +1,6 @@
 import { Icon } from "@iconify/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import NotificationBell from "../../components/notification/NotificationBell";
 import { getInitials } from "./adminShared";
@@ -40,14 +40,21 @@ export default function AdminLayout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const allowedNavItems = user?.role === "Merchant"
+    ? navItems.filter((item) => item.to === "/admin/orders")
+    : navItems;
   const filteredNavItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
-    return navItems.filter((item) => item.label.toLowerCase().includes(q));
-  }, [searchQuery]);
+    return allowedNavItems.filter((item) => item.label.toLowerCase().includes(q));
+  }, [allowedNavItems, searchQuery]);
 
   const fullName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Quản trị viên";
   const isFullBleedPage = location.pathname.startsWith("/admin/chat");
+
+  if (user?.role === "Merchant" && location.pathname !== "/admin/orders") {
+    return <Navigate to="/admin/orders" replace />;
+  }
 
   return (
     <div
@@ -190,7 +197,7 @@ export default function AdminLayout() {
         ].join(" ")}
       >
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {navItems.map((item) => (
+          {allowedNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

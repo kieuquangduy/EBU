@@ -2,8 +2,9 @@ export type ChatMessageType = "Text" | "Image" | "System";
 
 export interface ChatAttachmentDto {
   url: string;
-  fileName: string;
-  contentType?: string;
+  name: string;
+  contentType?: string | null;
+  sizeBytes?: number | null;
 }
 
 export interface ChatProductCardDto {
@@ -69,8 +70,7 @@ export interface SendChatMessageDto {
   chatRoomId: string;
   message: string;
   messageType?: ChatMessageType;
-  attachmentUrls?: string[];
-  productId?: string | null;
+  attachments?: ChatAttachmentDto[];
 }
 
 export interface MessagesReadEventDto {

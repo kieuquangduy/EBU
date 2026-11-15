@@ -2,9 +2,15 @@ using api.DTOs.admin;
 using api.DTOs.product;
 using api.common;
 using api.services.interfaces.admin;
+using api.services.interfaces.quote;
+using api.data;
+using api.DTOs.quote;
+using api.services.implementations.quote;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace api.controllers.admin
 {
@@ -171,6 +177,64 @@ namespace api.controllers.admin
             {
                 return NotFound(new { message = ClientErrorMessages.NotFoundDetail });
             }
+        }
+
+        [HttpPut("orders/{orderId}/details")]
+        public async Task<IActionResult> UpdateOrderDetails(
+            string orderId,
+            [FromBody] AdminUpdateOrderDetailsDto dto,
+            [FromServices] IValidator<AdminUpdateOrderDetailsDto> validator,
+            CancellationToken ct)
+        {
+            var validation = await validator.ValidateAsync(dto, ct);
+            if (!validation.IsValid)
+            {
+                return ValidationProblem(new ValidationProblemDetails(validation.ToClientSafeDictionary()));
+            }
+
+            return Ok(await _managementService.UpdateOrderDetailsAsync(orderId, dto, User.GetUserId(), ct));
+        }
+
+        [HttpPost("orders/{orderId}/files")]
+        [RequestSizeLimit(110 * 1024 * 1024)]
+        public async Task<IActionResult> UploadOrderFiles(
+            string orderId,
+            [FromForm] List<IFormFile> files,
+            [FromServices] ApplicationDbContext context,
+            [FromServices] ILogoUploadService uploadService,
+            CancellationToken ct)
+        {
+            var order = await context.Orders.FirstOrDefaultAsync(item => item.Id == orderId, ct)
+                ?? throw new KeyNotFoundException("Order not found");
+            var existing = QuoteStatusTransitionHelper.DeserializeLogoFiles(order.CustomFilesJson);
+            var uploaded = await uploadService.SaveChatAttachmentsAsync($"order-{orderId}", files, ct);
+            existing.AddRange(uploaded);
+            order.CustomFilesJson = JsonSerializer.Serialize(existing);
+            order.Updated = DateTime.UtcNow;
+            await context.SaveChangesAsync(ct);
+            return Ok(existing);
+        }
+
+        [HttpGet("orders/{orderId}/files/{fileName}")]
+        public async Task<IActionResult> DownloadOrderFile(
+            string orderId,
+            string fileName,
+            [FromServices] ApplicationDbContext context,
+            [FromServices] ILogoUploadService uploadService,
+            CancellationToken ct)
+        {
+            var json = await context.Orders.AsNoTracking()
+                .Where(order => order.Id == orderId)
+                .Select(order => order.CustomFilesJson)
+                .FirstOrDefaultAsync(ct)
+                ?? throw new KeyNotFoundException("Order not found");
+            var file = QuoteStatusTransitionHelper.DeserializeLogoFiles(json)
+                .FirstOrDefault(item => string.Equals(item.FileName, fileName, StringComparison.OrdinalIgnoreCase))
+                ?? throw new KeyNotFoundException("File not found");
+            var path = uploadService.ResolveChatAttachmentPath($"order-{orderId}", file.FileName)
+                ?? throw new KeyNotFoundException("File not found");
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            return PhysicalFile(path, uploadService.GetDownloadContentType(file.FileName), file.OriginalName);
         }
 
         [HttpPatch("orders/{orderId}/status")]

@@ -747,7 +747,7 @@ function RecentQuotesTable({ quotes }: { quotes: AdminRecentQuoteDto[] }) {
 
   return (
     <div className="min-w-0 overflow-x-auto">
-      <table className="w-full border-collapse font-inter text-sm font-normal">
+      <table className="w-full min-w-[560px] border-collapse font-inter text-sm font-normal">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/70 text-xs uppercase tracking-[0.1em] text-slate-500">
             <th className="px-3 py-2.5 text-left font-medium">Mã RFQ</th>
@@ -790,7 +790,7 @@ function RecentQuotesTable({ quotes }: { quotes: AdminRecentQuoteDto[] }) {
 }
 
 function RecentOrdersTable({ orders }: { orders: RecentOrderDto[] }) {
-  const { widths, startResize } = useResizableColumns([56, 130, 160, 150, 130, 150]);
+  const { widths, totalWidth, startResize } = useResizableColumns([56, 130, 160, 150, 130, 150]);
 
   if (!orders.length) {
     return (
@@ -804,7 +804,10 @@ function RecentOrdersTable({ orders }: { orders: RecentOrderDto[] }) {
 
   return (
     <div className="min-w-0 overflow-x-auto">
-      <table className="w-full table-fixed border-collapse font-inter text-sm font-normal">
+      <table
+        className="w-full table-fixed border-collapse font-inter text-sm font-normal"
+        style={{ minWidth: totalWidth }}
+      >
         <colgroup>
           {widths.map((w, i) => (
             <col key={i} style={{ width: w }} />

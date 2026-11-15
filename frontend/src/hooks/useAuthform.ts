@@ -64,7 +64,7 @@ export function useAuthForm<T extends Record<string, string>>({
                 }
                 setFieldErrors(formattedErrors);
             } else {
-                setServerError(errorData?.message || "Something went wrong");
+                setServerError(err?.message || errorData?.message || "Đã xảy ra lỗi. Vui lòng thử lại sau.");
             }
         } finally {
             setLoading(false);

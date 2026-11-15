@@ -40,6 +40,19 @@ namespace api.Tests.Rfq
             Assert.NotEmpty(mapped.AvailablePrintTechniques);
         }
 
+        [Theory]
+        [InlineData(180_000, 200_000, 180_000)]
+        [InlineData(0, 200_000, 200_000)]
+        public void ResolveBasePrice_UsesProductTablePrice(
+            decimal basePrice,
+            decimal price,
+            decimal expected)
+        {
+            var product = new Product { BasePrice = basePrice, Price = price };
+
+            Assert.Equal(expected, ProductRfqMetadataHelper.ResolveBasePrice(product));
+        }
+
         [Fact]
         public void CreateProductValidator_RejectsOriginalPriceLowerThanBasePrice()
         {

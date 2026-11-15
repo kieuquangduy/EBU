@@ -161,6 +161,87 @@ namespace api.services.implementations.seed
             return result;
         }
 
+        public async Task<SeedResult> ClearProductsAsync()
+        {
+            var result = new SeedResult();
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    _context.Wishlists.RemoveRange(_context.Wishlists);
+                    _context.Reviews.RemoveRange(_context.Reviews);
+                    _context.ProductVariants.RemoveRange(_context.ProductVariants);
+                    _context.ProductCategories.RemoveRange(_context.ProductCategories);
+                    await _context.SaveChangesAsync();
+
+                    var products = await _context.Products.ToListAsync();
+                    _context.Products.RemoveRange(products);
+                    await _context.SaveChangesAsync();
+
+                    await transaction.CommitAsync();
+                    await InvalidateCatalogCacheAsync();
+                    result.Success = true;
+                    result.Message = "Da xoa toan bo du lieu san pham va bien the.";
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    result.Success = false;
+                    result.Error = ex.InnerException?.Message ?? ex.Message;
+                }
+            });
+
+            return result;
+        }
+
+        public async Task<SeedResult> ResetProductsAsync()
+        {
+            var result = new SeedResult();
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    await SeedCategoriesAsync();
+                    await SeedBrandsAsync();
+                    await _context.SaveChangesAsync();
+
+                    _context.Wishlists.RemoveRange(_context.Wishlists);
+                    _context.Reviews.RemoveRange(_context.Reviews);
+                    _context.ProductVariants.RemoveRange(_context.ProductVariants);
+                    _context.ProductCategories.RemoveRange(_context.ProductCategories);
+                    await _context.SaveChangesAsync();
+
+                    var products = await _context.Products.ToListAsync();
+                    _context.Products.RemoveRange(products);
+                    await _context.SaveChangesAsync();
+
+                    result.Products = await SeedProductsAsync();
+                    result.ProductCats = await SeedProductCategoriesAsync();
+                    result.Variants = await SeedVariantsAsync();
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                    await InvalidateCatalogCacheAsync();
+                    result.Success = true;
+                    result.Message = "Reset san pham seed thanh cong.";
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    result.Success = false;
+                    result.Error = ex.InnerException?.Message ?? ex.Message;
+                }
+            });
+
+            return result;
+        }
+
         private async Task SeedCatalogAsync(SeedResult result)
         {
             result.Categories = await SeedCategoriesAsync();

@@ -7,6 +7,39 @@ export const USER_STORAGE_KEY = '_u';
 export const ACCESS_TOKEN_KEY = '_at';
 export const REFRESH_TOKEN_KEY = '_rt';
 
+const TECHNICAL_ERROR_REGEX =
+    /(?:^Request failed with status code \d+|(\b(System\.)?[A-Z][a-zA-Z0-9_.]*(Exception|Error)\b|^\s*[A-Z][a-zA-Z0-9_.]*(Exception|Error):)|\bat\s+[A-Za-z0-9_.]+\s*\(|\bat\s+[A-Za-z0-9_.<>]+\.[a-zA-Z0-9_]+|\bline\s+\d+\b|\.cs:\d+|\b(Microsoft\.AspNetCore|Microsoft\.EntityFrameworkCore|System\.Private|System\.Data|Npgsql|CloudinaryDotNet|Kestrel)\b|\b(SELECT\s.+FROM|INSERT\s+INTO|UPDATE\s.+SET|DELETE\s+FROM|DROP\s+TABLE|ALTER\s+TABLE|FOREIGN\s+KEY|PRIMARY\s+KEY|syntax\s+error\s+at\s+or\s+near)\b|(?:[a-zA-Z]:[\\/]|\/(?:app|var|etc|usr|home|root)\/)[^\s]+|\b(Sequence contains no elements|Object reference not set|Nullable object must have a value|An unhandled exception occurred|Cannot insert duplicate key|Connection refused|Host is unreachable|A network-related or instance-specific error|The connection was closed|Failed to connect to|An unexpected error occurred invoking)\b)/i;
+
+export function isUnsafeErrorMessage(msg: unknown): boolean {
+    if (typeof msg !== 'string' || !msg.trim()) return false;
+    return TECHNICAL_ERROR_REGEX.test(msg.trim());
+}
+
+export function sanitizeErrorMessage(msg: unknown, fallback = 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.'): string {
+    if (typeof msg !== 'string' || !msg.trim()) return fallback;
+    const trimmed = msg.trim();
+    return isUnsafeErrorMessage(trimmed) ? fallback : trimmed;
+}
+
+export function getFallbackForStatus(status?: number): string {
+    switch (status) {
+        case 400:
+            return 'Yêu cầu không hợp lệ. Vui lòng kiểm tra lại.';
+        case 401:
+            return 'Vui lòng đăng nhập để tiếp tục.';
+        case 403:
+            return 'Bạn không có quyền thực hiện thao tác này.';
+        case 404:
+            return 'Không tìm thấy dữ liệu yêu cầu.';
+        case 409:
+            return 'Dữ liệu bị trùng lặp hoặc xung đột. Vui lòng kiểm tra lại.';
+        case 422:
+            return 'Dữ liệu gửi lên không đúng định dạng.';
+        default:
+            return 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.';
+    }
+}
+
 export function clearCachedUser() {
     localStorage.removeItem(USER_STORAGE_KEY);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
@@ -89,7 +122,20 @@ api.interceptors.response.use(
         }
 
         if (error.message === 'Network Error') {
-            error.message = 'Không thể kết nối tới API.';
+            error.message = 'Không thể kết nối tới máy chủ. Vui lòng kiểm tra mạng.';
+            return Promise.reject(error);
+        }
+
+        const status = error.response?.status;
+        error.statusCode = status;
+
+        if (status && status >= 500) {
+            const safeMsg = 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.';
+            error.message = safeMsg;
+            if (error.response?.data && typeof error.response.data === 'object') {
+                error.response.data.message = safeMsg;
+                error.response.data.detail = safeMsg;
+            }
             return Promise.reject(error);
         }
 
@@ -97,20 +143,46 @@ api.interceptors.response.use(
             error.response.data = toCamelCase(error.response.data);
 
             const data = error.response.data;
-            error.statusCode = error.response.status;
             if (data?.errors && typeof data.errors === 'object') {
                 error.errors = data.errors;
-                error.message = Object.values(data.errors).flat().join(', ');
+                const cleanList: string[] = [];
+                for (const key in data.errors) {
+                    const val = data.errors[key];
+                    const arr = Array.isArray(val) ? val : [val];
+                    const cleanArr = arr.map((item: any) =>
+                        typeof item === 'string'
+                            ? sanitizeErrorMessage(item, 'Dữ liệu không hợp lệ.')
+                            : 'Dữ liệu không hợp lệ.'
+                    );
+                    data.errors[key] = cleanArr;
+                    cleanList.push(...cleanArr);
+                }
+                error.message = cleanList.join(', ');
             } else if (data?.detail) {
-                error.message = `${data.title ?? 'Request failed'}: ${data.detail}`;
-            } else if (data?.title) {
-                error.message = data.title;
+                if (isUnsafeErrorMessage(data.detail)) {
+                    error.message = (data?.title && !isUnsafeErrorMessage(data.title))
+                        ? data.title
+                        : getFallbackForStatus(status);
+                } else {
+                    error.message = data.detail;
+                }
             } else if (data?.message) {
-                error.message = data.message;
+                error.message = sanitizeErrorMessage(data.message, getFallbackForStatus(status));
+            } else if (data?.title) {
+                error.message = sanitizeErrorMessage(data.title, getFallbackForStatus(status));
+            } else {
+                error.message = getFallbackForStatus(status);
             }
+
+            if (typeof data === 'object') {
+                data.message = error.message;
+                data.detail = error.message;
+            }
+        } else {
+            error.message = sanitizeErrorMessage(error.message, getFallbackForStatus(status));
         }
 
-        const is401 = error.response?.status === 401;
+        const is401 = status === 401;
 
         //  CHẶN LOOP: không xử lý nếu chính nó là refresh API
         if (originalRequest?.url?.includes('/auth/refresh-token')) {

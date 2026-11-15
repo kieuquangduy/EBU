@@ -8,13 +8,14 @@ namespace api.Tests.Rfq
     public class QuoteRequestServiceTests
     {
         [Theory]
-        [InlineData(QuoteStatus.Pending, QuoteStatus.Contacted, false, true)]
+        [InlineData(QuoteStatus.Pending, QuoteStatus.Contacted, false, false)]
         [InlineData(QuoteStatus.Pending, QuoteStatus.Quoted, false, true)]
         [InlineData(QuoteStatus.Pending, QuoteStatus.Completed, false, false)]
         [InlineData(QuoteStatus.Contacted, QuoteStatus.Quoted, false, true)]
-        [InlineData(QuoteStatus.Quoted, QuoteStatus.Accepted, false, true)]
-        [InlineData(QuoteStatus.Accepted, QuoteStatus.InProduction, false, true)]
-        [InlineData(QuoteStatus.InProduction, QuoteStatus.Completed, false, true)]
+        [InlineData(QuoteStatus.Quoted, QuoteStatus.Accepted, false, false)]
+        [InlineData(QuoteStatus.Quoted, QuoteStatus.Accepted, true, true)]
+        [InlineData(QuoteStatus.Accepted, QuoteStatus.InProduction, false, false)]
+        [InlineData(QuoteStatus.InProduction, QuoteStatus.Completed, false, false)]
         [InlineData(QuoteStatus.Completed, QuoteStatus.Pending, false, false)]
         [InlineData(QuoteStatus.Rejected, QuoteStatus.Quoted, false, false)]
         [InlineData(QuoteStatus.Cancelled, QuoteStatus.Pending, false, false)]

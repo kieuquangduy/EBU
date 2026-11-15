@@ -11,10 +11,12 @@ import { useShopContact } from "../hooks/useShopContact";
 import { openZaloProductConsult, resolveProductPricing } from "../lib/productRfq";
 import ZaloIcon from "../components/common/ZaloIcon";
 import {
+  DEFAULT_QUOTE_PRODUCT_IMAGE,
   USER_STATUS_TABS,
   type UserStatusGroup,
   formatPrintTechnique,
   getUserStatusBadge,
+  resolveQuoteProductTitle,
 } from "../lib/quoteStatus";
 import { ROUTES, routeTo } from "../lib/routes";
 import { FEATURE_FLAGS } from "../lib/featureFlags";
@@ -279,6 +281,8 @@ export default function MyQuotesPage() {
               <div className="divide-y divide-gray-100">
                 {items.map((item) => {
                   const badge = getUserStatusBadge(item.status);
+                  const displayTitle = resolveQuoteProductTitle(item);
+                  const displayImage = item.productImageUrl || DEFAULT_QUOTE_PRODUCT_IMAGE;
                   return (
                     <Link
                       key={item.id}
@@ -286,17 +290,19 @@ export default function MyQuotesPage() {
                       className="flex flex-col gap-3 p-4 sm:p-5 transition hover:bg-gray-50/70 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex items-start gap-3.5 min-w-0">
-                        {item.productImageUrl ? (
+                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-50">
                           <img
-                            src={item.productImageUrl}
-                            alt={item.productName ?? item.quoteCode}
-                            className="h-14 w-14 shrink-0 rounded-md border border-gray-200 object-cover"
+                            src={displayImage}
+                            alt={displayTitle}
+                            className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (target.src !== DEFAULT_QUOTE_PRODUCT_IMAGE) {
+                                target.src = DEFAULT_QUOTE_PRODUCT_IMAGE;
+                              }
+                            }}
                           />
-                        ) : (
-                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-gray-100 text-slate-400">
-                            <Icon icon="lucide:shirt" width={22} />
-                          </div>
-                        )}
+                        </div>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-xs sm:text-sm font-bold text-primeColor">
@@ -308,8 +314,11 @@ export default function MyQuotesPage() {
                               {badge.label}
                             </span>
                           </div>
-                          <p className="mt-1 truncate text-xs sm:text-sm font-semibold text-primeColor">
-                            {item.productName ?? "Đặt may áo custom theo yêu cầu"}
+                          <p
+                            className="mt-1 truncate text-xs sm:text-sm font-semibold text-primeColor"
+                            title={displayTitle}
+                          >
+                            {displayTitle}
                           </p>
                           <p className="mt-0.5 text-[11px] sm:text-xs text-lightText">
                             Số lượng: <strong>{item.quantity} áo</strong>

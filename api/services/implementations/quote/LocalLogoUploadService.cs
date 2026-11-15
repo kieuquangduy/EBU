@@ -24,15 +24,18 @@ namespace api.services.implementations.quote
         };
 
         private readonly string _storageRoot;
+        private readonly string _chatStorageRoot;
 
         public LocalLogoUploadService(IWebHostEnvironment env)
         {
             _storageRoot = Path.GetFullPath(Path.Combine(env.ContentRootPath, "App_Data", "uploads", "logos"));
+            _chatStorageRoot = Path.GetFullPath(Path.Combine(env.ContentRootPath, "App_Data", "uploads", "chat"));
         }
 
         public LocalLogoUploadService(string storageRoot)
         {
             _storageRoot = Path.GetFullPath(storageRoot);
+            _chatStorageRoot = Path.GetFullPath(Path.Combine(storageRoot, "chat"));
         }
 
         public async Task<List<LogoFileRefDto>> SaveLogosAsync(
@@ -112,6 +115,35 @@ namespace api.services.implementations.quote
             return saved;
         }
 
+        public async Task<List<LogoFileRefDto>> SaveChatAttachmentsAsync(
+            string roomId,
+            IReadOnlyList<IFormFile> files,
+            CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(roomId))
+            {
+                throw new ArgumentException("Phòng chat không hợp lệ.");
+            }
+
+            if (files is null || files.Count == 0 || files.Count > 5)
+            {
+                throw new ArgumentException("Mỗi tin nhắn phải có từ 1 đến 5 tệp đính kèm.");
+            }
+
+            var saved = await SaveLogosAsync(files, ct);
+            var roomRoot = GetChatRoomRoot(roomId);
+            Directory.CreateDirectory(roomRoot);
+
+            foreach (var file in saved)
+            {
+                var source = ResolveExistingPath(file.FileName)
+                    ?? throw new FileNotFoundException("Không tìm thấy tệp vừa tải lên.");
+                File.Move(source, Path.Combine(roomRoot, file.FileName));
+            }
+
+            return saved;
+        }
+
         public string? ResolveExistingPath(string storedFileName)
         {
             if (string.IsNullOrWhiteSpace(storedFileName) || !SafeStoredNameRegex().IsMatch(storedFileName))
@@ -121,6 +153,31 @@ namespace api.services.implementations.quote
 
             var fullPath = ResolveTargetPath(storedFileName);
             return File.Exists(fullPath) ? fullPath : null;
+        }
+
+        public string? ResolveChatAttachmentPath(string roomId, string storedFileName)
+        {
+            if (string.IsNullOrWhiteSpace(roomId) ||
+                string.IsNullOrWhiteSpace(storedFileName) ||
+                !SafeStoredNameRegex().IsMatch(storedFileName))
+            {
+                return null;
+            }
+
+            var fullPath = Path.Combine(GetChatRoomRoot(roomId), storedFileName);
+            return File.Exists(fullPath) ? fullPath : null;
+        }
+
+        public bool DeleteChatAttachment(string roomId, string storedFileName)
+        {
+            var path = ResolveChatAttachmentPath(roomId, storedFileName);
+            if (path is null)
+            {
+                return false;
+            }
+
+            File.Delete(path);
+            return true;
         }
 
         public string GetDownloadContentType(string storedFileName) =>
@@ -270,6 +327,13 @@ namespace api.services.implementations.quote
             }
 
             return fullPath;
+        }
+
+        private string GetChatRoomRoot(string roomId)
+        {
+            var roomHash = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(roomId)));
+            return Path.Combine(_chatStorageRoot, roomHash);
         }
 
         private static string SanitizeOriginalFileName(string name)

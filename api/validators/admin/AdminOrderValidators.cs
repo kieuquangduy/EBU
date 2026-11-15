@@ -42,13 +42,17 @@ public sealed class AdminCreateManualOrderDtoValidator : AbstractValidator<Admin
             .MaximumLength(200);
 
         RuleFor(x => x.ReceiverPhone)
-            .NotEmpty().WithMessage("Vui lòng nhập số điện thoại.")
             .MaximumLength(20)
             .Matches(@"^(0|\+84)(3|5|7|8|9)[0-9]{8}$")
-            .WithMessage("Số điện thoại Việt Nam không hợp lệ.");
+            .WithMessage("Số điện thoại Việt Nam không hợp lệ.")
+            .When(x => !string.IsNullOrWhiteSpace(x.ReceiverPhone));
+
+        RuleFor(x => x.CustomerEmail)
+            .NotEmpty().WithMessage("Vui lòng nhập email khách hàng.")
+            .EmailAddress().WithMessage("Email khách hàng không hợp lệ.")
+            .MaximumLength(200);
 
         RuleFor(x => x.AddressLine)
-            .NotEmpty().WithMessage("Vui lòng nhập địa chỉ giao hàng.")
             .MaximumLength(500);
 
         RuleFor(x => x.ShippingFee)
@@ -68,12 +72,42 @@ public sealed class AdminCreateManualOrderDtoValidator : AbstractValidator<Admin
                     .NotEmpty().WithMessage("Tên sản phẩm không được để trống.")
                     .MaximumLength(300);
 
+                item.RuleFor(i => i.VariantColor).MaximumLength(50);
+                item.RuleFor(i => i.Material).MaximumLength(100);
+
                 item.RuleFor(i => i.Quantity)
                     .GreaterThan(0).WithMessage("Số lượng phải lớn hơn 0.");
 
                 item.RuleFor(i => i.UnitPrice)
                     .GreaterThanOrEqualTo(0).WithMessage("Đơn giá không hợp lệ.");
             });
+    }
+}
+
+public sealed class AdminUpdateOrderDetailsDtoValidator : AbstractValidator<AdminUpdateOrderDetailsDto>
+{
+    public AdminUpdateOrderDetailsDtoValidator()
+    {
+        RuleFor(x => x.ReceiverName).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.CustomerEmail)
+            .EmailAddress().MaximumLength(200)
+            .When(x => !string.IsNullOrWhiteSpace(x.CustomerEmail));
+        RuleFor(x => x.ReceiverPhone)
+            .MaximumLength(20)
+            .Matches(@"^(0|\+84)(3|5|7|8|9)[0-9]{8}$")
+            .When(x => !string.IsNullOrWhiteSpace(x.ReceiverPhone));
+        RuleFor(x => x.AddressLine).MaximumLength(500);
+        RuleFor(x => x.Note).MaximumLength(1000).When(x => !string.IsNullOrWhiteSpace(x.Note));
+        RuleFor(x => x.ShippingFee).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Items).NotEmpty();
+        RuleForEach(x => x.Items).ChildRules(item =>
+        {
+            item.RuleFor(i => i.ProductName).NotEmpty().MaximumLength(300);
+            item.RuleFor(i => i.VariantColor).MaximumLength(50);
+            item.RuleFor(i => i.Material).MaximumLength(100);
+            item.RuleFor(i => i.Quantity).GreaterThan(0);
+            item.RuleFor(i => i.UnitPrice).GreaterThanOrEqualTo(0);
+        });
     }
 }
 

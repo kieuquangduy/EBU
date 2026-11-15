@@ -70,6 +70,32 @@ namespace api.Tests.Rfq
             Assert.Null(_service.ResolveExistingPath(@"..\..\api.csproj"));
         }
 
+        [Fact]
+        public async Task SaveChatAttachmentsAsync_IsolatesFilesByRoom()
+        {
+            var validPng = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00 };
+            var saved = Assert.Single(await _service.SaveChatAttachmentsAsync(
+                "room-a",
+                new[] { CreateFormFile("mau-ao.png", validPng) }));
+
+            Assert.NotNull(_service.ResolveChatAttachmentPath("room-a", saved.FileName));
+            Assert.Null(_service.ResolveChatAttachmentPath("room-b", saved.FileName));
+            Assert.Null(_service.ResolveChatAttachmentPath("room-a", "../appsettings.json"));
+        }
+
+        [Fact]
+        public async Task DeleteChatAttachment_RemovesOnlyValidatedRoomFile()
+        {
+            var validPng = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00 };
+            var saved = Assert.Single(await _service.SaveChatAttachmentsAsync(
+                "room-a",
+                new[] { CreateFormFile("mau-ao.png", validPng) }));
+
+            Assert.False(_service.DeleteChatAttachment("room-a", "../appsettings.json"));
+            Assert.True(_service.DeleteChatAttachment("room-a", saved.FileName));
+            Assert.Null(_service.ResolveChatAttachmentPath("room-a", saved.FileName));
+        }
+
         private static IFormFile CreateFormFile(string fileName, byte[] bytes)
         {
             var stream = new MemoryStream(bytes);

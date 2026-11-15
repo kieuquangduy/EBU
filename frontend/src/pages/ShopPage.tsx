@@ -147,7 +147,7 @@ export default function ShopPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <div className="bg-[#f7f5f2] border-b border-gray-200 py-10 px-10">
+      <div className="bg-[#f7f5f2] border-b border-gray-200 py-6 sm:py-10 px-4 sm:px-6 lg:px-10">
         <div className="max-w-container mx-auto">
           <nav className="flex items-center gap-2 text-sm text-lightText font-bodyFont mb-3">
             <Link to="/" className="hover:text-red-500 transition-colors">
@@ -156,7 +156,7 @@ export default function ShopPage() {
             <span className="text-gray-300">/</span>
             <span className="text-primeColor">Shop</span>
           </nav>
-          <h1 className="font-titleFont text-3xl font-bold">
+          <h1 className="font-titleFont text-2xl sm:text-3xl font-bold">
             {selectedCategoryName ?? "Tất cả áo custom"}
           </h1>
           <p className="text-sm text-lightText font-bodyFont mt-1.5">
@@ -169,7 +169,7 @@ export default function ShopPage() {
         </div>
       </div>
 
-      <div className="max-w-container mx-auto px-10 py-10 flex gap-10">
+      <div className="max-w-container mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-10 flex gap-6 lg:gap-10">
         {/* ── Sidebar ───────────────────────────────────────────────────── */}
         <aside className="hidden lg:block w-[240px] flex-shrink-0">
           <div className="sticky top-20 space-y-8">

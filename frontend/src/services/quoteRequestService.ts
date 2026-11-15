@@ -40,12 +40,20 @@ export const quoteRequestService = {
     return http.patch<QuoteRequestDto>(`/quote-requests/${encodeURIComponent(id)}/cancel`);
   },
 
-  async downloadLogo(quoteId: string, fileName: string, originalName?: string): Promise<void> {
+  acceptQuote(id: string): Promise<QuoteRequestDto> {
+    return http.patch<QuoteRequestDto>(`/quote-requests/${encodeURIComponent(id)}/accept`);
+  },
+
+  async getLogoBlob(quoteId: string, fileName: string): Promise<Blob> {
     const response = await api.get<Blob>(
       `/quote-requests/${encodeURIComponent(quoteId)}/logos/${encodeURIComponent(fileName)}`,
       { responseType: "blob" }
     );
-    const blobUrl = URL.createObjectURL(response.data);
+    return response.data;
+  },
+
+  async downloadLogo(quoteId: string, fileName: string, originalName?: string): Promise<void> {
+    const blobUrl = URL.createObjectURL(await this.getLogoBlob(quoteId, fileName));
     const anchor = document.createElement("a");
     anchor.href = blobUrl;
     anchor.download = originalName || fileName;

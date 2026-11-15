@@ -100,6 +100,34 @@ namespace api.controllers.seed
             return seed.Success ? Ok(response) : StatusCode(StatusCodes.Status500InternalServerError, response);
         }
 
+        [HttpPost("products/reset")]
+        [ProducesResponseType(typeof(SeedResultResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(SeedResultResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> ResetProductsSeed()
+        {
+            var result = await _seedService.ResetProductsAsync();
+            var response = BuildResponse(
+                result,
+                $"Reset san pham seed thanh cong. Da them: {result.Products} products, {result.ProductCats} product-categories, {result.Variants} variants.",
+                $"Reset san pham seed that bai: {result.Error}");
+
+            return result.Success ? Ok(response) : StatusCode(StatusCodes.Status500InternalServerError, response);
+        }
+
+        [HttpDelete("products/clear")]
+        [ProducesResponseType(typeof(SeedResultResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(SeedResultResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> ClearProductsSeed()
+        {
+            var result = await _seedService.ClearProductsAsync();
+            var response = BuildResponse(
+                result,
+                result.Message,
+                $"Xoa san pham seed that bai: {result.Error}");
+
+            return result.Success ? Ok(response) : StatusCode(StatusCodes.Status500InternalServerError, response);
+        }
+
         private static SeedResultResponse BuildResponse(
             SeedResult result,
             string successMessage,

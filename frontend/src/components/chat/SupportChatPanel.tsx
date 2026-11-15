@@ -13,9 +13,11 @@ import { useToast } from "../../context/toastContext";
 import { useAuth } from "../../hooks/useAuth";
 import { useChatConnection } from "../../hooks/useChatConnection";
 import { routeTo } from "../../lib/routes";
+import { formatChatFileSize } from "../../lib/chatAttachments";
 import { chatService } from "../../services/chatService";
 import { quoteRequestService } from "../../services/quoteRequestService";
 import { formatPrice } from "../../utils/formatPrice";
+import { ChatAttachmentList } from "./ChatAttachments";
 
 type Props = {
   onClose: () => void;
@@ -72,6 +74,8 @@ export default function SupportChatPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const [isAdminOnline, setIsAdminOnline] = useState<boolean>(
     initialAvailability?.isAdminOnline ?? true
   );
@@ -85,6 +89,7 @@ export default function SupportChatPanel({
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleMessage = useCallback((message: ChatMessageDto) => {
     setMessages((current) => {
@@ -183,32 +188,44 @@ export default function SupportChatPanel({
   }, [messages.length, loading]);
 
   const canSend = useMemo(
-    () => text.trim().length > 0 && status === "connected" && Boolean(room),
-    [room, status, text]
+    () =>
+      (text.trim().length > 0 || selectedFiles.length > 0) &&
+      !uploadingFiles &&
+      status === "connected" &&
+      Boolean(room),
+    [room, selectedFiles.length, status, text, uploadingFiles]
   );
 
-  const sendDirect = async (raw: string) => {
+  const sendDirect = async (raw: string, files: File[] = []) => {
     if (!room || status !== "connected") return;
     const message = raw.trim();
-    if (!message) return;
+    if (!message && files.length === 0) return;
 
     setError(null);
+    setUploadingFiles(files.length > 0);
     try {
-      await sendMessage({ chatRoomId: room.id, message });
+      const attachments = files.length > 0
+        ? await chatService.uploadAttachments(room.id, files)
+        : [];
+      await sendMessage({ chatRoomId: room.id, message, attachments });
+      setText("");
+      setSelectedFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không gửi được tin nhắn.");
       setText(message);
+    } finally {
+      setUploadingFiles(false);
     }
   };
 
   const submitMessage = async () => {
     if (!room || !canSend) return;
     const message = text.trim();
-    setText("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-    await sendDirect(message);
+    await sendDirect(message, selectedFiles);
   };
 
   const onSubmit = (event: FormEvent) => {
@@ -452,6 +469,7 @@ export default function SupportChatPanel({
                         ].join(" ")}
                       >
                         <p className="whitespace-pre-wrap break-words">{message.message}</p>
+                        <ChatAttachmentList attachments={message.attachments} mine={mine} />
                         {message.productCard ? (
                           <Link
                             to={routeTo.product(message.productCard.slug)}
@@ -550,10 +568,54 @@ export default function SupportChatPanel({
       ) : null}
 
       {/* Thanh nhập tin nhắn */}
+      {selectedFiles.length > 0 ? (
+        <div className="flex gap-2 overflow-x-auto border-t border-slate-100 bg-white px-3 py-2">
+          {selectedFiles.map((file, index) => (
+            <div key={`${file.name}-${file.lastModified}`} className="flex max-w-48 shrink-0 items-center gap-2 rounded-lg bg-slate-100 px-2 py-1.5 text-xs">
+              <Icon icon={file.type.startsWith("image/") ? "mdi:image-outline" : "mdi:file-outline"} width={17} className="shrink-0 text-[#0068ff]" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-slate-700">{file.name}</span>
+                <span className="text-[10px] text-slate-500">{formatChatFileSize(file.size)}</span>
+              </span>
+              <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Bỏ tệp ${file.name}`} className="text-slate-400 hover:text-rose-600">
+                <Icon icon="mdi:close" width={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <form
         onSubmit={onSubmit}
         className="flex items-end gap-1.5 border-t border-slate-100 bg-white p-2.5"
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".png,.jpg,.jpeg,.svg,.pdf,.ai,.xlsx,.xls,.docx,.doc"
+          className="hidden"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            if (files.some((file) => file.size > 10 * 1024 * 1024)) {
+              setError("Mỗi tệp đính kèm không được vượt quá 10MB.");
+              event.target.value = "";
+              return;
+            }
+            setSelectedFiles((current) => [...current, ...files].slice(0, 5));
+            event.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          disabled={uploadingFiles}
+          onClick={() => fileInputRef.current?.click()}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-[#0068ff] disabled:opacity-40"
+          aria-label="Đính kèm ảnh hoặc tệp"
+          title="Đính kèm ảnh hoặc tệp (tối đa 5 tệp, 10MB/tệp)"
+        >
+          <Icon icon="mdi:paperclip" width={20} />
+        </button>
         <button
           type="button"
           onClick={() => setShowEmojis((prev) => !prev)}
@@ -590,14 +652,14 @@ export default function SupportChatPanel({
           />
         </div>
 
-        {text.trim().length > 0 ? (
+        {text.trim().length > 0 || selectedFiles.length > 0 ? (
           <button
             type="submit"
             disabled={!canSend}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0068ff] text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Gửi tin nhắn"
           >
-            <Icon icon="mdi:send" width={18} />
+            <Icon icon={uploadingFiles ? "mdi:loading" : "mdi:send"} width={18} className={uploadingFiles ? "animate-spin" : ""} />
           </button>
         ) : (
           <button

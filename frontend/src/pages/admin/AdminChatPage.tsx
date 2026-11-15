@@ -6,7 +6,9 @@ import type { ChatMessageDto, ChatRoomDto, MessagesReadEventDto } from "../../@t
 import { useAuth } from "../../hooks/useAuth";
 import { useChatConnection } from "../../hooks/useChatConnection";
 import { chatService } from "../../services/chatService";
+import { formatChatFileSize } from "../../lib/chatAttachments";
 import { formatPrice } from "../../utils/formatPrice";
+import { ChatAttachmentList } from "../../components/chat/ChatAttachments";
 import { getInitials } from "./adminShared";
 
 type RoomFilter = "all" | "unread" | "priority";
@@ -195,6 +197,8 @@ export default function AdminChatPage() {
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   // Zalo / Messenger UI states
   const [roomSearch, setRoomSearch] = useState("");
@@ -219,6 +223,7 @@ export default function AdminChatPage() {
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
@@ -414,31 +419,44 @@ export default function AdminChatPage() {
     setShowScrollBottom(distanceFromBottom > 180);
   };
 
-  const canSend = Boolean(text.trim().length > 0 && status === "connected" && activeRoomId);
+  const canSend = Boolean(
+    (text.trim().length > 0 || selectedFiles.length > 0) &&
+    !uploadingFiles &&
+    status === "connected" &&
+    activeRoomId
+  );
 
-  const sendDirectMessage = async (rawMessage: string) => {
+  const sendDirectMessage = async (rawMessage: string, files: File[] = []) => {
     if (!activeRoomId || status !== "connected") return;
     const trimmed = rawMessage.trim();
-    if (!trimmed) return;
+    if (!trimmed && files.length === 0) return;
 
     setError(null);
+    setUploadingFiles(files.length > 0);
     try {
-      await sendMessage({ chatRoomId: activeRoomId, message: trimmed });
+      const attachments = files.length > 0
+        ? await chatService.uploadAttachments(activeRoomId, files)
+        : [];
+      await sendMessage({ chatRoomId: activeRoomId, message: trimmed, attachments });
+      setText("");
+      setSelectedFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setTimeout(() => scrollToBottom("smooth"), 50);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không gửi được tin nhắn.");
       setText(trimmed);
+    } finally {
+      setUploadingFiles(false);
     }
   };
 
   const submitMessage = async () => {
     if (!activeRoomId || !canSend) return;
     const message = text.trim();
-    setText("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-    await sendDirectMessage(message);
+    await sendDirectMessage(message, selectedFiles);
   };
 
   const onSubmit = (event: FormEvent) => {
@@ -652,6 +670,8 @@ export default function AdminChatPage() {
                     type="button"
                     onClick={() => {
                       setActiveRoomId(room.id);
+                      setSelectedFiles([]);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
                       setMobileShowChat(true);
                     }}
                     className={[
@@ -1023,6 +1043,7 @@ export default function AdminChatPage() {
                               title={new Date(message.created).toLocaleString("vi-VN")}
                             >
                               <p className="whitespace-pre-wrap break-words">{message.message}</p>
+                              <ChatAttachmentList attachments={message.attachments} mine={mine} />
                               {message.productCard ? (
                                 <div className="mt-2 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-2 text-left text-slate-900 shadow-sm">
                                   {message.productCard.imageUrl ? (
@@ -1143,10 +1164,54 @@ export default function AdminChatPage() {
             ) : null}
 
             {/* Khung nhập tin nhắn (Composer) phong cách Messenger / Zalo */}
+            {selectedFiles.length > 0 ? (
+              <div className="flex gap-2 overflow-x-auto border-t border-slate-200/80 bg-white px-4 py-2">
+                {selectedFiles.map((file, index) => (
+                  <div key={`${file.name}-${file.lastModified}`} className="flex max-w-56 shrink-0 items-center gap-2 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs">
+                    <Icon icon={file.type.startsWith("image/") ? "mdi:image-outline" : "mdi:file-outline"} width={18} className="shrink-0 text-[#0068ff]" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-700">{file.name}</span>
+                      <span className="text-[10px] text-slate-500">{formatChatFileSize(file.size)}</span>
+                    </span>
+                    <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Bỏ tệp ${file.name}`} className="text-slate-400 hover:text-rose-600">
+                      <Icon icon="mdi:close" width={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <form
               onSubmit={onSubmit}
               className="relative flex items-end gap-2 border-t border-slate-200/80 bg-white px-3 py-2.5 sm:px-4"
             >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".png,.jpg,.jpeg,.svg,.pdf,.ai,.xlsx,.xls,.docx,.doc"
+                className="hidden"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  if (files.some((file) => file.size > 10 * 1024 * 1024)) {
+                    setError("Mỗi tệp đính kèm không được vượt quá 10MB.");
+                    event.target.value = "";
+                    return;
+                  }
+                  setSelectedFiles((current) => [...current, ...files].slice(0, 5));
+                  event.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                disabled={uploadingFiles}
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-[#0068ff] disabled:opacity-40"
+                aria-label="Đính kèm ảnh hoặc tệp"
+                title="Đính kèm ảnh hoặc tệp (tối đa 5 tệp, 10MB/tệp)"
+              >
+                <Icon icon="mdi:paperclip" width={22} />
+              </button>
               {/* Emoji Picker Popover */}
               <div ref={emojiPickerRef} className="relative">
                 <button
@@ -1213,7 +1278,7 @@ export default function AdminChatPage() {
               </div>
 
               {/* Nút Gửi hoặc Nút Like nhanh (👍) giống Messenger / Zalo */}
-              {text.trim().length > 0 ? (
+              {text.trim().length > 0 || selectedFiles.length > 0 ? (
                 <button
                   type="submit"
                   disabled={!canSend}
@@ -1221,7 +1286,7 @@ export default function AdminChatPage() {
                   aria-label="Gửi tin nhắn"
                   title="Gửi tin nhắn (Enter)"
                 >
-                  <Icon icon="mdi:send" width={19} />
+                  <Icon icon={uploadingFiles ? "mdi:loading" : "mdi:send"} width={19} className={uploadingFiles ? "animate-spin" : ""} />
                 </button>
               ) : (
                 <button

@@ -40,7 +40,7 @@ export default function AdminUsersPage() {
   const [merchantId, setMerchantId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
-  const { widths, startResize } = useResizableColumns([46, 60, 170, 210, 130, 150, 140, 120]);
+  const { widths, totalWidth, startResize } = useResizableColumns([46, 60, 170, 210, 130, 150, 140, 120]);
 
   const debouncedSearch = useDebounce(search, 350);
   const filters = useMemo(
@@ -220,7 +220,10 @@ export default function AdminUsersPage() {
           </div>
 
           <div className="overflow-x-auto px-2 pt-2 sm:px-4">
-            <table className="w-full table-fixed border-collapse font-inter text-sm font-normal">
+            <table
+              className="w-full table-fixed border-collapse font-inter text-sm font-normal"
+              style={{ minWidth: totalWidth }}
+            >
               <colgroup>
                 {widths.map((w, i) => (
                   <col key={i} style={{ width: w }} />

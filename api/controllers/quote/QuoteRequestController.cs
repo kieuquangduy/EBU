@@ -117,6 +117,20 @@ namespace api.controllers.quote
             return Ok(result);
         }
 
+        [HttpPatch("{id}/accept")]
+        [Authorize]
+        [ProducesResponseType(typeof(QuoteRequestDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Accept(string id, CancellationToken ct)
+        {
+            var userId = User.GetUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                throw new ApiAuthenticationException("Missing user identifier.");
+            }
+
+            return Ok(await _quoteService.AcceptByUserAsync(id, userId, ct));
+        }
+
         [HttpGet("{id}/logos/{fileName}")]
         [Authorize]
         [ProducesResponseType(StatusCodes.Status200OK)]

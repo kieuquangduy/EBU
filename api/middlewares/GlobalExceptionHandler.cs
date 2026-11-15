@@ -49,7 +49,7 @@ namespace api.middleware
                 OperationCanceledException
                     => (499, ClientErrorMessages.RequestCancelledTitle, null),
 
-                _ => (StatusCodes.Status500InternalServerError, ClientErrorMessages.ServerErrorTitle, ClientErrorMessages.ServerErrorDetail),
+                _ => (StatusCodes.Status500InternalServerError, ClientErrorMessages.ServerErrorTitle, null),
             };
 
             if (statusCode >= 500)
@@ -70,8 +70,8 @@ namespace api.middleware
             var env = context.RequestServices?.GetService<IHostEnvironment>();
             var isDev = env?.IsDevelopment() ?? false;
 
-            var safeDetail = isDev
-                ? $"{exception.GetType().Name}: {exception.Message}"
+            var safeDetail = statusCode >= 500
+                ? (isDev ? $"{exception.GetType().Name}: {exception.Message}" : null)
                 : detail;
 
             var problem = new ProblemDetails

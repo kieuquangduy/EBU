@@ -5,6 +5,7 @@ import type {
   CreateProductDto,
   UpdateProductDto,
 } from "../@types/product.type.ts";
+import { sanitizeErrorMessage } from "../api/apiClient";
 import { http } from "../lib/http";
 
 export interface UploadResponse {
@@ -31,9 +32,17 @@ export async function uploadImages(
       const data = await http.post<UploadResponse>("/image/upload", formData);
 
       if (data.uploaded) results.uploaded.push(...data.uploaded);
-      if (data.errors) results.errors.push(...data.errors);
+      if (data.errors) {
+        results.errors.push(
+          ...data.errors.map((item) => ({
+            fileName: item.fileName,
+            error: sanitizeErrorMessage(item.error, "Tải ảnh thất bại"),
+          }))
+        );
+      }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Cannot connect to server";
+      const errorMessage =
+        err instanceof Error ? err.message : "Không thể kết nối tới máy chủ";
       batch.forEach((file) =>
         results.errors.push({
           fileName: file.name,

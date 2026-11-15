@@ -94,6 +94,8 @@ namespace api.Tests.Rfq
                 throw new NotImplementedException();
             public Task<QuoteRequestDto> CancelByUserAsync(string id, string currentUserId, CancellationToken ct = default) =>
                 throw new NotImplementedException();
+            public Task<QuoteRequestDto> AcceptByUserAsync(string id, string currentUserId, CancellationToken ct = default) =>
+                throw new NotImplementedException();
             public Task<PagedQuoteRequestDto> GetAdminQuotesAsync(QuoteRequestQueryDto query, CancellationToken ct = default) =>
                 throw new NotImplementedException();
             public Task<QuoteRequestDto> UpdateStatusAsync(string id, UpdateQuoteStatusDto dto, CancellationToken ct = default) =>
@@ -110,7 +112,11 @@ namespace api.Tests.Rfq
         {
             public Task<List<LogoFileRefDto>> SaveLogosAsync(IReadOnlyList<IFormFile> files, CancellationToken ct = default) =>
                 throw new NotImplementedException();
+            public Task<List<LogoFileRefDto>> SaveChatAttachmentsAsync(string roomId, IReadOnlyList<IFormFile> files, CancellationToken ct = default) =>
+                throw new NotImplementedException();
             public string? ResolveExistingPath(string storedFileName) => null;
+            public string? ResolveChatAttachmentPath(string roomId, string storedFileName) => null;
+            public bool DeleteChatAttachment(string roomId, string storedFileName) => false;
             public string GetDownloadContentType(string storedFileName) => "application/octet-stream";
         }
     }

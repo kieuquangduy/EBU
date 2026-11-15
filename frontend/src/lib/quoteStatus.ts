@@ -10,9 +10,9 @@ export const QUOTE_STATUS_META: Record<
     description: "Yêu cầu đã gửi thành công, đang chờ tư vấn viên tiếp nhận.",
   },
   Contacted: {
-    label: "Đã liên hệ",
+    label: "Chờ xử lý",
     badgeClass: "bg-sky-100 text-sky-800",
-    description: "Tư vấn viên đã liên hệ và xác nhận yêu cầu thiết kế.",
+    description: "Yêu cầu cũ đang chờ shop gửi báo giá chính thức.",
   },
   Quoted: {
     label: "Đã báo giá",
@@ -20,9 +20,9 @@ export const QUOTE_STATUS_META: Record<
     description: "Shop đã gửi mức báo giá chính thức cho đơn hàng của bạn.",
   },
   Accepted: {
-    label: "Đã chốt báo giá",
+    label: "Báo giá thành công",
     badgeClass: "bg-emerald-100 text-emerald-800",
-    description: "Hai bên đã chốt báo giá và sẵn sàng chuyển xưởng sản xuất.",
+    description: "Khách hàng đã xác nhận báo giá; đơn hàng được chuyển sang xử lý.",
   },
   InProduction: {
     label: "Đang sản xuất",
@@ -73,11 +73,11 @@ export const PRINT_TECHNIQUE_LABELS: Record<PrintTechnique, string> = Object.fro
 ) as Record<PrintTechnique, string>;
 
 export const QUOTE_ADMIN_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
-  Pending: ["Contacted", "Quoted", "Rejected", "Cancelled"],
-  Contacted: ["Quoted", "Rejected", "Cancelled"],
-  Quoted: ["Accepted", "Rejected", "Cancelled"],
-  Accepted: ["InProduction", "Cancelled"],
-  InProduction: ["Completed", "Cancelled"],
+  Pending: ["Rejected", "Cancelled"],
+  Contacted: ["Rejected", "Cancelled"],
+  Quoted: ["Rejected", "Cancelled"],
+  Accepted: [],
+  InProduction: [],
   Completed: [],
   Rejected: [],
   Cancelled: [],
@@ -95,13 +95,13 @@ export function formatPrintTechnique(technique: PrintTechnique): string {
   return PRINT_TECHNIQUE_LABELS[technique] ?? technique;
 }
 
-export type UserStatusGroup = "" | "pending" | "accepted" | "completed" | "cancelled";
+export type UserStatusGroup = "" | "pending" | "quoted" | "accepted" | "cancelled";
 
 export const USER_STATUS_TABS: ReadonlyArray<{ value: UserStatusGroup; label: string }> = [
   { value: "", label: "Tất cả" },
   { value: "pending", label: "Chờ xử lý" },
-  { value: "accepted", label: "Đã chốt" },
-  { value: "completed", label: "Hoàn tất" },
+  { value: "quoted", label: "Đã báo giá" },
+  { value: "accepted", label: "Báo giá thành công" },
   { value: "cancelled", label: "Đã hủy" },
 ];
 
@@ -112,21 +112,21 @@ export function getUserStatusBadge(status: QuoteStatus): {
   switch (status) {
     case "Pending":
     case "Contacted":
-    case "Quoted":
       return {
         label: "Chờ xử lý",
         badgeClass: "bg-amber-50 text-amber-800 border border-amber-200",
       };
+    case "Quoted":
+      return {
+        label: "Đã báo giá",
+        badgeClass: "bg-indigo-50 text-indigo-800 border border-indigo-200",
+      };
     case "Accepted":
     case "InProduction":
-      return {
-        label: "Đã chốt",
-        badgeClass: "bg-blue-50 text-blue-800 border border-blue-200",
-      };
     case "Completed":
       return {
-        label: "Hoàn tất",
-        badgeClass: "bg-emerald-50 text-emerald-800 border border-emerald-200",
+        label: "Báo giá thành công",
+        badgeClass: "bg-blue-50 text-blue-800 border border-blue-200",
       };
     case "Cancelled":
     case "Rejected":
@@ -141,4 +141,33 @@ export function getUserStatusBadge(status: QuoteStatus): {
       };
   }
 }
+
+export const DEFAULT_QUOTE_PRODUCT_IMAGE =
+  "https://res.cloudinary.com/doj6srxwu/image/upload/v1794476872/haushop/product/custom/ao-co-co-01.png";
+
+export function resolveQuoteProductTitle(item: {
+  productName?: string | null;
+  organizationName?: string | null;
+  orderCode?: string | null;
+  material?: string | null;
+  quoteCode?: string;
+}): string {
+  const name = item.productName?.trim();
+  if (
+    name &&
+    name !== "Đặt may áo custom theo yêu cầu" &&
+    !/^đơn\s+(đặt|hàng)\s+áo\s+custom/i.test(name) &&
+    !/^áo\s+custom/i.test(name)
+  ) {
+    return name;
+  }
+  if (item.organizationName) {
+    return `Áo đồng phục ${item.organizationName}`;
+  }
+  if (item.material) {
+    return `Áo thun custom vải ${item.material}`;
+  }
+  return "Áo polo custom đồng phục theo yêu cầu";
+}
+
 
