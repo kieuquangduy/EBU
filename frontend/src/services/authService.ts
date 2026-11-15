@@ -39,6 +39,7 @@ export const authService = {
         http.get<UserDto>("/auth/me", { skipAuthRedirect: true }),
 
     loginWithGoogle: () => {
-        window.location.href = `${API_ORIGIN}/api/auth/google`;
+        const returnUrl = encodeURIComponent(window.location.origin);
+        window.location.href = `${API_ORIGIN}/api/auth/google?returnUrl=${returnUrl}`;
     }
 };
