@@ -631,7 +631,7 @@ export default function AdminOrdersPage() {
             role="dialog"
             aria-modal="true"
             aria-label="Chi tiết đơn hàng"
-            className={`absolute inset-y-0 right-0 w-full max-w-5xl transform bg-slate-50 transition-transform duration-300 ease-out ${
+            className={`absolute inset-y-0 right-0 w-full max-w-5xl transform bg-slate-50 font-inter antialiased transition-transform duration-300 ease-out ${
               selectedOrderId ? "translate-x-0" : "translate-x-full"
             }`}
           >
@@ -797,10 +797,10 @@ export default function AdminOrdersPage() {
                 ) : null}
 
                 {detailTab === "details" ? (
-                <details className="rounded-lg border border-slate-200 bg-white p-5">
-                  <summary className="cursor-pointer text-sm font-semibold text-black">
+                <section className="rounded-lg border border-slate-200 bg-white p-5">
+                  <p className="text-sm font-semibold text-black">
                     Chỉnh sửa thông tin và sản phẩm
-                  </summary>
+                  </p>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <input value={editReceiverName} onChange={(e) => setEditReceiverName(e.target.value)} placeholder="Tên khách hàng *" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
                     <input type="email" value={editCustomerEmail} onChange={(e) => setEditCustomerEmail(e.target.value)} placeholder="Email khách hàng" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
@@ -815,25 +815,38 @@ export default function AdminOrdersPage() {
                       <button type="button" onClick={() => setEditItems((items) => [...items, { productName: "Áo custom", variantSize: "", variantColor: "", material: "", quantity: 1, unitPrice: 0 }])} className="rounded border border-emerald-400 bg-emerald-50 px-2 py-1 text-xs font-semibold text-black">+ Thêm dòng</button>
                     </div>
                     <div className="overflow-x-auto pb-1">
-                      <div className="min-w-[560px] space-y-2">
+                      <table className="w-full min-w-[720px] border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200 text-left text-slate-600">
+                            <th className="px-1 py-2 font-medium">Sản phẩm</th>
+                            <th className="w-20 px-1 py-2 text-center font-medium">Size</th>
+                            <th className="w-24 px-1 py-2 text-center font-medium">Màu</th>
+                            <th className="w-28 px-1 py-2 text-center font-medium">Chất liệu</th>
+                            <th className="w-20 px-1 py-2 text-center font-medium">SL</th>
+                            <th className="w-28 px-1 py-2 text-right font-medium">Đơn giá</th>
+                            <th className="w-8" aria-label="Thao tác" />
+                          </tr>
+                        </thead>
+                        <tbody>
                         {editItems.map((item, index) => (
-                          <div key={index} className="grid grid-cols-[1.4fr_65px_90px_110px_65px_100px_auto] gap-2 items-center">
-                            <input value={item.productName} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, productName: e.target.value } : row))} placeholder="Sản phẩm" className="rounded border px-2 py-1.5 text-xs" />
-                            <input value={item.variantSize ?? ""} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, variantSize: e.target.value } : row))} placeholder="Size" className="rounded border px-2 py-1.5 text-xs text-center" />
-                            <input value={item.variantColor ?? ""} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, variantColor: e.target.value } : row))} placeholder="Màu sắc" maxLength={50} className="rounded border px-2 py-1.5 text-xs text-center" />
-                            <input value={item.material ?? ""} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, material: e.target.value } : row))} placeholder="Chất liệu" maxLength={100} className="rounded border px-2 py-1.5 text-xs text-center" />
-                            <input type="number" min={1} value={item.quantity} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, quantity: Math.max(1, Number(e.target.value) || 1) } : row))} placeholder="SL" className="rounded border px-2 py-1.5 text-xs text-center" />
-                            <input type="number" min={0} value={item.unitPrice} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, unitPrice: Math.max(0, Number(e.target.value) || 0) } : row))} placeholder="Đơn giá" className="rounded border px-2 py-1.5 text-xs text-right" />
-                            <button type="button" disabled={editItems.length === 1} onClick={() => setEditItems((items) => items.filter((_, i) => i !== index))} className="text-black disabled:opacity-30"><Icon icon="mdi:trash-can-outline" width={17} /></button>
-                          </div>
+                          <tr key={index} className="border-b border-slate-100 last:border-0">
+                            <td className="px-1 py-2"><input value={item.productName} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, productName: e.target.value } : row))} placeholder="Sản phẩm" className="w-full rounded border px-2 py-1.5 text-xs" /></td>
+                            <td className="px-1 py-2"><input value={item.variantSize ?? ""} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, variantSize: e.target.value } : row))} placeholder="Size" className="w-full rounded border px-2 py-1.5 text-center text-xs" /></td>
+                            <td className="px-1 py-2"><input value={item.variantColor ?? ""} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, variantColor: e.target.value } : row))} placeholder="Màu sắc" maxLength={50} className="w-full rounded border px-2 py-1.5 text-center text-xs" /></td>
+                            <td className="px-1 py-2"><input value={item.material ?? ""} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, material: e.target.value } : row))} placeholder="Chất liệu" maxLength={100} className="w-full rounded border px-2 py-1.5 text-center text-xs" /></td>
+                            <td className="px-1 py-2"><input type="number" min={1} value={item.quantity} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, quantity: Math.max(1, Number(e.target.value) || 1) } : row))} placeholder="SL" className="w-full rounded border px-2 py-1.5 text-center text-xs" /></td>
+                            <td className="px-1 py-2"><input type="number" min={0} value={item.unitPrice} onChange={(e) => setEditItems((items) => items.map((row, i) => i === index ? { ...row, unitPrice: Math.max(0, Number(e.target.value) || 0) } : row))} placeholder="Đơn giá" className="w-full rounded border px-2 py-1.5 text-right text-xs" /></td>
+                            <td className="px-1 py-2 text-center"><button type="button" aria-label={`Xóa ${item.productName || "dòng sản phẩm"}`} disabled={editItems.length === 1} onClick={() => setEditItems((items) => items.filter((_, i) => i !== index))} className="text-black disabled:opacity-30"><Icon icon="mdi:trash-can-outline" width={17} /></button></td>
+                          </tr>
                         ))}
-                      </div>
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                   <AdminPrimaryButton type="button" disabled={updateDetailsMutation.isPending} onClick={() => void handleUpdateDetails()} className="mt-4 w-full !bg-emerald-500 !bg-none !text-black !shadow-none hover:!bg-emerald-600">
                     {updateDetailsMutation.isPending ? "Đang lưu..." : "Lưu chi tiết đơn hàng"}
                   </AdminPrimaryButton>
-                </details>
+                </section>
                 ) : null}
 
                 {detailTab === "details" ? (
@@ -1058,7 +1071,7 @@ export default function AdminOrdersPage() {
                 </div>
                 ) : null}
 
-                {detailTab === "details" ? (
+                {detailTab === "overview" || detailTab === "details" ? (
                 <div className="rounded-lg border border-slate-200 bg-white p-5">
                   <p className="text-sm font-semibold text-black">Sản phẩm trong đơn</p>
                   <div className="mt-3 overflow-x-auto">
